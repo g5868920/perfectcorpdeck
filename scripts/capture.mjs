@@ -8,7 +8,7 @@ const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:5173/';
 const OUT = process.env.OUT_DIR ?? 'screenshots';
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const SHOTS = {
-  s1: { route: 'signature', file: 'S1-creator-signature.png' },
+  s1: { route: 'memory', file: 'S1-creator-memory.png' },
   s2: { route: 'new', file: 'S2-new-reel.png' },
   s3: { route: 'plan', file: 'S3-agent-plan.png' },
   s4: { route: 'preview', file: 'S4-complete-reel.png', seek: 1.2 },
@@ -16,9 +16,23 @@ const SHOTS = {
   s6: { route: 'finish', file: 'S6-finish.png' },
   library: { scenario: 's6', route: 'library', file: 'extra-history.png' },
   err: { route: 'error', file: 'extra-exception.png' },
+  // v3 review set (Explore integration + Creator Memory). `clicks` press buttons by visible text first.
+  'v3-explore': { scenario: 'fresh', route: 'explore', file: 'v3-review/1-explore.png' },
+  'v3-video': { scenario: 'fresh', route: 'video', file: 'v3-review/1b-ai-video-create-reel.png' },
+  'v3-agent': { scenario: 'fresh', route: 'agent', file: 'v3-review/2-ai-agent.png' },
+  'v3-agent-reply': { scenario: 'fresh', route: 'agent', file: 'v3-review/2b-ai-agent-reel-reply.png', clicks: ['Create a complete Reel from an idea'] },
+  'v3-memory': { scenario: 'memory', route: 'memory', file: 'v3-review/3-creator-memory-hub.png' },
+  'v3-memory-sugg': { scenario: 'memory', route: 'memory', file: 'v3-review/3b-memory-suggestions.png', clicks: ['Suggestions'] },
+  'v3-firstuse': { scenario: 'fresh', route: 'reel-agent', file: 'v3-review/4-first-use-offer.png' },
+  'v3-setup': { scenario: 'fresh', route: 'setup', file: 'v3-review/4b-setup-review.png', clicks: ['Use example description', 'Suggest preferences'], scrollTo: '.reviewlist' },
+  'v3-new': { scenario: 'brief-mem', route: 'new', file: 'v3-review/5-new-reel-memory.png', scrollTo: '.promptbox' },
+  'v3-plan': { scenario: 'plan-mem', route: 'plan', file: 'v3-review/6-agent-plan-memory.png' },
+  'v3-settings': { scenario: 'memory', route: 'settings', file: 'v3-review/extra-settings-preferences.png' },
 };
-const want = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(SHOTS);
+const args = process.argv.slice(2);
+const want = args[0] === 'v3' ? Object.keys(SHOTS).filter((k) => k.startsWith('v3-')) : args.length ? args : Object.keys(SHOTS);
 mkdirSync(OUT, { recursive: true });
+mkdirSync(`${OUT}/v3-review`, { recursive: true });
 
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--hide-scrollbars', '--autoplay-policy=no-user-gesture-required'] });
 try {
@@ -29,6 +43,21 @@ try {
     await page.setViewport({ width: 393, height: 852, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
     await page.goto(`${BASE}?capture&scenario=${shot.scenario ?? key}#/${shot.route}`, { waitUntil: 'networkidle0' });
     await page.evaluate(() => document.fonts.ready);
+    for (const t of shot.clicks ?? []) {
+      await page.evaluate((txt) => {
+        const el = [...document.querySelectorAll('button')].find((b) => b.innerText.trim().startsWith(txt));
+        if (!el) throw new Error('capture: no button ' + txt);
+        el.click();
+      }, t);
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    if (shot.scrollTo) {
+      await page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        const sc = document.querySelector('.frame__scroll');
+        if (el && sc) sc.scrollTop = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 8;
+      }, shot.scrollTo);
+    }
     if (shot.seek !== undefined) {
       await page.evaluate(async (t) => {
         const v = document.querySelector('.player video');

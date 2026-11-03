@@ -9,7 +9,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const click = (text, sel = 'button') =>
   page.evaluate(
     (t, s) => {
-      const el = [...document.querySelectorAll(s)].find((b) => b.innerText.trim().includes(t) && !b.disabled);
+      const el = [...document.querySelectorAll(s)].find((b) => b.offsetParent !== null && !b.closest('.presenter') && b.innerText.trim().includes(t) && !b.disabled);
       if (!el) throw new Error(`No enabled ${s} with text: ${t}`);
       el.click();
     },
@@ -36,21 +36,25 @@ const check = (name, ok, detail = '') => {
 };
 
 // fresh seed
-await page.goto(BASE + '#/signature', { waitUntil: 'networkidle0' });
+await page.goto(BASE + '#/explore', { waitUntil: 'networkidle0' });
 await page.evaluate(() => localStorage.clear());
-await page.goto(BASE + '?scenario=s1#/signature', { waitUntil: 'networkidle0' });
-await page.goto(BASE + '#/signature', { waitUntil: 'networkidle0' });
+await page.goto(BASE + '?scenario=fresh#/explore', { waitUntil: 'networkidle0' });
+await page.goto(BASE + '#/memory', { waitUntil: 'networkidle0' });
 
-// S1: suggestion requires approval
+// S1 (Creator Memory): suggestion requires approval
 let s = await state();
-check('S1 suggestion not saved before approval', !s.signature.some((x) => x.id === 'hook-length'));
-await click('Save to Signature');
+check('S1 suggestion not saved before approval', !s.memory.some((x) => x.id === 'hook-length'));
+await click('Suggestions');
+await click('Save to Creator Memory');
 await wait(200);
 s = await state();
-check('S1 Save to Signature adds memory', s.signature.some((x) => x.id === 'hook-length'));
+check('S1 Save to Creator Memory adds preference', s.memory.some((x) => x.id === 'hook-length'));
 
-// First Reel
-await click('Create', '.bottomnav button');
+// First Reel via the task-first entry
+await page.goto(BASE + '#/explore', { waitUntil: 'networkidle0' });
+await click('Video Generator', '.feature');
+await click('Create Reel');
+await click('Skip for Now');
 await wait(300);
 check('S2 brief seeded', (await page.$eval('.promptbox textarea', (t) => t.value)) === 'A cozy weekend coffee ritual.');
 await click('Plan My Reel');
@@ -113,18 +117,18 @@ await setInput('.override select', 'Cool Night Look', 'change');
 await wait(150);
 await click('Plan My Reel');
 await wait(300);
-const chips = await page.$$eval('.planhead .chip', (c) => c.map((x) => x.innerText.trim()));
-check('A second brief reuses hook/voice/captions/music without retyping', ['Conversational, Question-first', 'Mandarin, Neutral', 'Traditional Chinese, Bold White', 'Mellow Lo-fi'].every((v) => chips.includes(v)), chips.join(' | '));
+const chips = await page.$$eval('.influence__body b', (c) => c.map((x) => x.innerText.trim()));
+check('A second brief reuses hook/voice/captions/music without retyping', ['Mandarin, Neutral', 'Traditional Chinese, Bold White', 'Mellow Lo-fi'].every((v) => chips.includes(v)) && chips.some((v) => v.startsWith('Conversational, Question-first')), chips.join(' | '));
 check('B Cool Night Look applied to this plan', chips.includes('Cool Night Look') && (await page.$eval('.scene__thumb img', (i) => i.src)).includes('cool'));
 await click('Approve & Generate Reel');
 await wait(250);
 await click('Save Plan as Draft');
 await wait(300);
 await page.reload({ waitUntil: 'networkidle0' });
-await page.evaluate(() => (location.hash = '#/signature'));
+await page.evaluate(() => (location.hash = '#/memory'));
 await wait(300);
 s = await state();
-check('B global Signature still Warm Cinematic after refresh', s.signature.find((x) => x.id === 'visual').value === 'Warm Cinematic');
+check('B global Memory still Warm Cinematic after refresh', s.memory.find((x) => x.id === 'visual').value === 'Warm Cinematic');
 check('B override kept only on second Reel', s.projects.find((p) => p.brief.includes('bookstore')).overrides.visual === 'Cool Night Look');
 
 // Exception
@@ -138,7 +142,8 @@ await click('Replace Scene');
 await wait(150);
 await click('Use original Scene 02 again');
 await wait(150);
-await click('Set low (5)');
+await page.evaluate(() => [...document.querySelectorAll('.presenter button')].find((b) => b.innerText.includes('Set low')).click()); // presenter demo control
+await wait(150);
 await wait(150);
 await click('Replace Scene 02');
 await wait(250);
@@ -162,7 +167,7 @@ await wait(200);
 await click('Reset Demo', '.sheet button');
 await wait(300);
 s = await state();
-check('Reset Demo restores seed', s.projects.length === 0 && s.credits === 120 && s.signature.length === 6 && s.suggestion.status === 'pending');
+check('Reset Demo restores seed', s.projects.length === 0 && s.credits === 120 && s.memory.length === 6 && s.suggestions[0].status === 'pending' && s.memorySetup === 'unseen');
 
 await browser.close();
 const failed = results.filter((r) => !r.ok).length;

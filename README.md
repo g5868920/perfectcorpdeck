@@ -1,8 +1,8 @@
-# Creator-Aware Reel Agent — concept demo (YouCam AI Pro–inspired)
+# Creator-Aware Reel Agent — concept demo (inside a YouCam AI Pro–style app)
 
-A clickable, stateful prototype of a *proposed* feature for a Perfect Corp. App PM interview. It is **not** a shipped YouCam / Perfect Corp feature, uses no YouCam logos or screenshots, and runs entirely in the browser.
+A clickable, stateful prototype of a *proposed* feature for a Perfect Corp. App PM interview. It is **not** a shipped YouCam / Perfect Corp feature. It uses no YouCam logo files or screenshot backgrounds, runs entirely in the browser, and stores only synthetic demo data.
 
-**Flow:** S1 Creator Signature → S2 New Reel → S3 Agent Plan → S4 Create + complete Reel preview → S5 Refine → S6 Finish / History, plus one recoverable exception state.
+**v3 status: UI/UX review checkpoint.** The Reel Agent is integrated into recreated YouCam AI Pro surfaces (from `visual-references/`), and Creator Memory has been added. All earlier features still work.
 
 ## Run
 
@@ -11,75 +11,79 @@ Node is installed locally at `~/.local/node-v26.13.0-darwin-arm64`, not system-w
 ```bash
 export PATH=~/.local/node-v26.13.0-darwin-arm64/bin:$PATH
 npm install
-npm run dev              # http://127.0.0.1:5173  (desktop shows the presenter rail + app frame)
-npm run build            # typecheck (tsc) + production build to dist/
-npm run typecheck
-npm run smoke            # needs `npm run dev` running: journeys A/B/C + exception, layout at 4 sizes, sound-blocked fallback
-npm run capture          # needs `npm run dev` running: writes 1179×2556 PNGs to screenshots/
+npm run dev            # http://127.0.0.1:5173
+npm run build          # typecheck (tsc) + production build to dist/  (⚠ empties dist/)
+npm run smoke          # needs `npm run dev`: T1–T7, T8 regression (A/B/C + exception), layout at 4 sizes, sound-blocked fallback
+npm run capture:v3     # needs `npm run dev`: v3 review screenshots → screenshots/v3-review/
+npm run capture        # all capture states (incl. the earlier S1–S6 slide set)
 ```
 
-**Reset Demo:** use the presenter rail on desktop, or the History tab → Reset Demo. Either one restores the seeded Signature, 120 demo coins and an empty History.
+**Reset Demo:** use the presenter rail on desktop, or History → Reset Demo.
 
-## Presenting and capturing
+## How it fits the real app
 
-| What | How |
+| Path | What happens |
 |---|---|
-| Live demo on a projector | Open `http://127.0.0.1:5173`. The app frame scales to the screen height, and the left rail jumps to any screen. |
-| Phone-size view | Any window narrower than 600px shows the app full-bleed, without the rail. |
-| Chrome-free app view | Add `?capture` (e.g. `?capture#/refine`). |
-| Deterministic screen states | Add `?scenario=s1` … `s6` or `err` (see `src/state.ts → buildScenario`). |
-| Slide screenshots | `npm run capture` saves `screenshots/S1…S6` plus `extra-history.png` and `extra-exception.png`. Slide 07 uses S1–S3; Slide 08 uses S4–S6. |
+| **Primary (task-first):** Explore → Video Generator → **Create a Complete Reel with AI Agent → Create Reel** | Opens Reel Agent home |
+| **Secondary (conversation-first):** AI Agent tab → **"Create a complete Reel from an idea"**, or type a Reel request in "Ask anything" | The agent replies with **Start Reel Agent**, which opens Reel Agent home |
+| **Discovery:** All Tools → AI Video → **Reel Agent** tile | Reel Agent home |
+| **Memory:** Settings → PREFERENCES → **Creator Memory**, Reel Agent home → Creator Memory, or New Reel → **Manage Memory** | All three open the **same** Memory Hub and store |
 
-The presenter rail also has **Set low (5)** / **Restore** demo-coin buttons, so you can show the exception through the real Replace Scene flow.
+Every entry point leads into the same flow: Reel Agent home → (optional first-use setup) → New Reel → Agent Plan → Create → Complete Reel → Refine → Finish → History.
+
+**Presenting:** on desktop the app frame is shown at a readable size, with a presenter rail for jumping between screens. The rail is a demo utility: it is hidden below 600px and in `?capture`. Deterministic screen states: `?capture&scenario=fresh|memory|brief-mem|plan-mem|s4|s5|s6|err`.
+
+## Creator Memory
+
+- **Saved Preferences** in nine categories: Visual Style, Storytelling Tone, Hook Style and Length, Scene Pacing and Transitions, Narration Voice and Language, Captions and Typography, Music Mood, Output Format, Exclusions / Things to Avoid. You can add, edit, delete, enable or disable each one.
+- **AI Memory Suggestions:** pending suggestions are kept separate from saved preferences, and each one says *why* it was suggested. The choices are **Save to Creator Memory / Not Now / Dismiss**.
+- **Memory Management:** what the Agent noticed, dismissed suggestions (with Reconsider), and a recent-changes log.
+- **Optional first-use setup:** the creator describes their style in their own words. The app turns that into **structured suggestions**, the creator **reviews and edits** them, then taps **Save** explicitly. **Skip for Now** goes straight to New Reel.
+- **Applied everywhere:** the New Reel "Using Creator Memory" card (View / Manage / Customize for This Reel / Make default); the Agent Plan's "How your Creator Memory shaped this plan" section (hook & script, visual, narration, music, captions, pacing, exclusions); and the first prepared version, which picks up the saved caption style and music mood.
+- **Precedence:** explicit This-Reel-only choices override saved defaults, and never change Memory unless the creator taps **Make default**.
+
+### Learning rule (simulated, deterministic)
+
+1. Creative choices made for a Reel are recorded as non-sensitive *signals*. These are New Reel overrides, plan adjustments (hook length, pacing) and refinements (music, caption style), with the latest choice per preference key per Reel.
+2. If the same choice appears in **2 different Reels**, differs from what's saved, and hasn't already been saved or dismissed, a **pending suggestion** is created with its reason, e.g. *"You chose 'Bright Acoustic' for music mood in 2 different Reels."*
+3. It is saved to Memory **only** on Save to Creator Memory. Not Now snoozes it (it returns only with new evidence). Dismiss rejects it (it can be reconsidered under Manage). A one-off change never becomes a preference.
+4. Pending suggestions show in the Memory Hub, and also after a Reel is marked Ready to Use.
+
+The "short opening hooks" suggestion in a fresh demo is labelled **seeded demo history**. Setup extraction uses keyword rules. **There is no real AI or learning model.**
 
 ## Real vs simulated
 
 | Real (genuinely works) | Simulated (disclosed in the UI) |
 |---|---|
-| Signature add / edit / delete / disable; saved in localStorage across refreshes | The "short opening hooks" suggestion is scripted demo content, not behavior modeling |
-| The suggestion is saved only on **Save to Signature**; **Not Now** discards it | The agent plan is deterministic from the seed brief and profile |
-| This-Reel-only overrides live on the project and never change the Signature | Production stages (Script → … → Assembly) are paced animation with no progress % or time claims |
-| Script editing, scene reordering, confirmation sheets | "Generation" plays prepared media (*"Concept demo — AI generation simulated with prepared media."*) |
-| **Playback:** 20s, 9:16, 4 scenes, audible Mandarin narration, audible music, timed Traditional Chinese captions | All coin amounts are **DEMO / illustrative**, not YouCam prices; there are no payments |
-| Caption text and style edits update the live preview instantly | Replace Scene 02 swaps to a *prepared* alternate clip (the UI says so) |
-| Music switch is audible (two different tracks) | Re-voicing rewritten narration is **not** simulated (the UI says so) |
-| Original / Revised compare, Keep Original, Use Revision; the original is never modified | The exception state (insufficient demo coins) is triggered on purpose |
-| Ready to Use, saving to History, and **Export Video** downloads a real MP4 matching the scene and music choice | Bookstore brief: plan only. No prepared video exists for it, so it is saved as a draft plan |
+| Navigation across the 4 tabs, AI Video, Settings, Reel Agent, Memory, the whole Reel flow | Recreated existing YouCam tools outside the concept show an "out of scope" note |
+| Memory edits, toggles, deletes, setup save; synced across all entry points; persisted in localStorage | The AI Agent chat replies with canned text and detects Reel intent with keywords |
+| Signal recording, the suggestion rule, Save / Not Now / Dismiss / Reconsider | The learning rule is deterministic, as above; the "short hooks" suggestion is seeded demo history |
+| Overrides with "Make default"; precedence over saved defaults | The agent plan is deterministic from the seed brief; production stages are paced animation |
+| Playback: 20s, 9:16, 4 scenes, audible narration and music, timed Traditional Chinese captions | "Generation" plays prepared media; coins are DEMO / illustrative, with no payments |
+| Caption, music and Scene 02 revisions; Original / Revised compare; Keep Original / Use Revision | Scene 02's alternate is a prepared clip; re-voicing rewritten text isn't simulated |
+| Ready to Use, saving to History, **Export Video** downloads a real MP4 matching the scene and music choice | Plan-only settings (e.g. Cool Night on the coffee brief, warm narration, fast cuts) are labelled "plan only" |
 
-**Export limitation (shown in the UI):** there are four prepared exports (Scene 02 original/alternate × two music tracks). Each has burned-in **original** Bold White captions. Caption text and style edits are preview-only and are not in the downloaded file.
+**Export limitation:** the four prepared exports (Scene 02 original/alternate × two tracks) have burned-in **Bold White** original captions. Caption text and style edits, including a Memory caption style such as Clean Minimal, are preview-only. The Finish screen says so.
 
 ## Media provenance (`public/media/`)
 
-Everything was **created for this demo on this machine**. There are no stock, scraped or third-party assets.
+Everything was created for this demo on this machine. There are no stock, scraped or third-party assets.
 
-| Asset | Source | Rights |
-|---|---|---|
-| Scenes 1–4, Scene 02 alternate, bookstore stills (warm and cool) | Procedural illustrations drawn in code: `media-src/render.swift` (CoreGraphics) | Original work |
-| "Mellow Lo-fi", "Bright Acoustic" | Synthesized from math in `media-src/music.py` (no samples) | Original work |
-| Mandarin narration (`voiceover.m4a`) | macOS built-in `say` voice **Meijia (zh_TW)** | Apple's macOS licence allows system-voice output for **personal, non-commercial** projects. That fits an interview demo; check Apple's terms before any commercial use |
-| Captions (`captions.json`) | Script text, timed from measured narration durations | Original |
-| `preview-*.mp4` (silent visuals), `reel-*.mp4` (full mixed exports) | Assembled with AVFoundation in `render.swift` | Original |
+- **Visuals:** procedural CoreGraphics illustrations (`media-src/render.swift`). Original work.
+- **Music:** synthesized from math (`media-src/music.py`). Original work.
+- **Narration:** the macOS `say` voice **Meijia (zh_TW)**. This is fine for a personal, non-commercial interview demo; check Apple's terms before any commercial use.
+- **Template thumbnails on Explore:** the same original illustrations, not YouCam content.
 
-To regenerate the media (macOS):
-
-```bash
-cd media-src
-python3 music.py build
-swiftc -O -swift-version 5 render.swift -o build/render
-./build/render "$PWD/build" "$PWD/../public/media" all
-```
-
-The narration clips `build/vo1–4.aiff` come from `say -v Meijia -r 165`; the four lines are in `src/state.ts → COFFEE_SCRIPT`.
+To regenerate the media: `cd media-src && python3 music.py build && swiftc -O -swift-version 5 render.swift -o build/render && ./build/render "$PWD/build" "$PWD/../public/media" all`. The narration clips `build/vo1–4.aiff` come from `say -v Meijia -r 165`.
 
 ## Design
 
-See `YOUCAM_UI_AUDIT.md`. The look is fully light, with dark surfaces only behind video. Visual tokens live in `src/theme.ts`. It is YouCam-*inspired*, not identical, and the values are inferred rather than official design tokens.
+See `YOUCAM_UI_AUDIT.md`. It is based on Gina's screenshots in `visual-references/` and also covers what's existing vs proposed. All tokens live in `src/theme.ts`. The look is YouCam-*inspired* (inferred values, not official tokens).
 
 ## Known limitations
 
-- Only the coffee brief has playable media. Other briefs produce a plan saved as a draft.
-- Caption edits are preview-only in exports (see above). Voice and music level sliders are preview-only.
-- Only Scene 02 has a prepared alternate. Replace is disabled for other scenes, with an explanation.
-- Demo state lives only in this browser's localStorage. This is not cloud storage.
-- `public/media` is about 59 MB (four 20s exports plus two preview videos).
-- No backup screen recording is included (no ffmpeg on this Mac). Record one with QuickTime → New Screen Recording while running the demo.
+- Only the coffee brief has playable media. Other briefs produce a plan that's saved as a draft.
+- Caption edits aren't in exported MP4s. Voice and music level sliders are preview-only. Only Scene 02 has an alternate.
+- The Memory Hub's "noticed choices" list can't yet be cleared on its own (Reset Demo clears everything).
+- Slide screenshots: `screenshots/S1-creator-memory.png` … `S6-finish.png` (Slides 07/08) are captured in the approved v3 UI. Regenerate them with `npm run capture` (dev server running).
+- Tested in Chrome only (headless + in-app browser), not Safari or a physical iPhone. There's no backup screen recording (no ffmpeg); use QuickTime.

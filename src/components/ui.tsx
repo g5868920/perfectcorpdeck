@@ -1,29 +1,81 @@
 import { ReactNode } from 'react';
-import { Route } from '../store';
+import type { Route } from '../store';
 import { Icon } from './Icon';
 
-/** YouCam-style header: back chevron · centered title · coin pill. */
-export function AppBar({ title, onBack, coins }: { title: string; onBack?: () => void; coins: number }) {
+/** Gray coin pill with gold "C" coin — as in the YouCam headers. Demo coins only. */
+export function CoinPill({ coins, onClick }: { coins: number; onClick?: () => void }) {
+  return (
+    <button className="coinpill" onClick={onClick} title="Demo coins — illustrative only, not real YouCam prices" aria-label={`${coins} demo coins`}>
+      <span className="coinpill__coin" aria-hidden="true">
+        C
+      </span>
+      <b>{coins}</b>
+    </button>
+  );
+}
+
+/** Marks UI that is a proposed extension (not part of the shipped YouCam AI Pro app). */
+export function ProposedTag({ children = 'Proposed', inline }: { children?: ReactNode; inline?: boolean }) {
+  return <span className={`proposed ${inline ? 'proposed--inline' : ''}`}>{children}</span>;
+}
+
+/** YouCam-style pushed-screen header: back chevron · centered title · right slot (coin pill by default). */
+export function AppBar({
+  title,
+  onBack,
+  coins,
+  left,
+  right,
+  proposed,
+}: {
+  title: string;
+  onBack?: () => void;
+  coins?: number;
+  left?: ReactNode;
+  right?: ReactNode;
+  proposed?: boolean;
+}) {
   return (
     <header className="appbar">
       <div className="appbar__side">
-        {onBack ? (
-          <button className="iconbtn iconbtn--ghost" onClick={onBack} aria-label="Back">
-            <Icon name="arrowLeft" size={22} />
+        {onBack && (
+          <button className="iconbtn iconbtn--ghost iconbtn--back" onClick={onBack} aria-label="Back">
+            <Icon name="arrowLeft" size={24} stroke={1.7} />
           </button>
-        ) : (
-          <span className="conceptpill" title="Proposed feature — not a shipped YouCam feature">
-            Concept Demo
-          </span>
         )}
+        {left}
       </div>
-      <h1 className="appbar__title">{title}</h1>
-      <div className="appbar__side appbar__side--end">
-        <span className="coinpill" title="Demo coins — illustrative only, not real YouCam prices">
-          <span className="coinpill__coin" aria-hidden="true" />
-          <b>{coins}</b>
-          <em>DEMO</em>
-        </span>
+      <h1 className="appbar__title">
+        {title}
+        {proposed && <ProposedTag inline />}
+      </h1>
+      <div className="appbar__side appbar__side--end">{right ?? (coins !== undefined ? <CoinPill coins={coins} /> : null)}</div>
+    </header>
+  );
+}
+
+/** Text recreation of the app wordmark for the Explore / History headers (no logo files used). */
+export function Wordmark() {
+  return (
+    <span className="wordmark" aria-label="YouCam AI Pro">
+      YouCam<span className="wordmark__ai">AI</span>
+      <span className="wordmark__pro">Pro</span>
+    </span>
+  );
+}
+
+export function HomeHeader({ coins, onSettings }: { coins: number; onSettings: () => void }) {
+  return (
+    <header className="homeheader">
+      <Wordmark />
+      <span className="conceptpill" title="Interview concept demo — not the shipped app">
+        Concept demo
+      </span>
+      <div className="homeheader__end">
+        <CoinPill coins={coins} />
+        <button className="iconbtn iconbtn--ghost" onClick={onSettings} aria-label="Settings">
+          <Icon name="gear" size={26} stroke={1.6} />
+        </button>
       </div>
     </header>
   );
@@ -64,18 +116,21 @@ export function SectionTitle({ children, aside }: { children: ReactNode; aside?:
   );
 }
 
-/** Floating light nav with lavender active pill (YouCam pattern). Only functional tabs are shown. */
+/** The existing four-tab YouCam navigation: Explore · AI Agent · All Tools · History. */
 export function BottomNav({ route, go }: { route: Route; go: (r: Route) => void }) {
-  const items: { r: Route; label: string; icon: string; match: Route[] }[] = [
-    { r: 'new', label: 'Create', icon: 'sparkle', match: ['new', 'plan', 'create', 'preview', 'refine', 'finish', 'error'] },
-    { r: 'signature', label: 'Signature', icon: 'user', match: ['signature'] },
-    { r: 'library', label: 'History', icon: 'library', match: ['library'] },
+  const items: { r: Route; label: string; icon: string }[] = [
+    { r: 'explore', label: 'Explore', icon: 'compass' },
+    { r: 'agent', label: 'AI Agent', icon: 'agentChat' },
+    { r: 'tools', label: 'All Tools', icon: 'grid' },
+    { r: 'library', label: 'History', icon: 'clock' },
   ];
   return (
     <nav className="bottomnav" aria-label="Main">
       {items.map((i) => (
-        <button key={i.r} className={i.match.includes(route) ? 'is-on' : ''} onClick={() => go(i.r)} aria-current={i.match.includes(route) ? 'page' : undefined}>
-          <Icon name={i.icon} size={20} />
+        <button key={i.r} className={route === i.r ? 'is-on' : ''} onClick={() => go(i.r)} aria-current={route === i.r ? 'page' : undefined}>
+          <span className="bottomnav__icon">
+            <Icon name={i.icon} size={26} stroke={1.7} />
+          </span>
           <span>{i.label}</span>
         </button>
       ))}
@@ -110,6 +165,54 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
           </button>
         </div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+/** Pending Memory suggestion card with the three explicit choices. */
+export function SuggestionCard({
+  label,
+  value,
+  reason,
+  onSave,
+  onNotNow,
+  onDismiss,
+  compact,
+}: {
+  label: string;
+  value: string;
+  reason: string;
+  onSave: () => void;
+  onNotNow: () => void;
+  onDismiss: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`suggest ${compact ? 'suggest--compact' : ''}`}>
+      <div className="suggest__head">
+        <span className="agentdot">
+          <Icon name="sparkle" size={13} />
+        </span>
+        <strong>Suggested for Your Memory</strong>
+        <span className="chip chip--agent">Needs your OK</span>
+      </div>
+      <p className="suggest__text">
+        Use <b>{value}</b> for {label.toLowerCase()} by default in future Reels?
+      </p>
+      <p className="suggest__why">
+        <Icon name="info" size={12} /> Why: {reason}
+      </p>
+      <div className="btnrow">
+        <button className="btn btn--primary btn--sm" onClick={onSave}>
+          <Icon name="check" size={14} /> Save to Creator Memory
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={onNotNow}>
+          Not Now
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={onDismiss}>
+          Dismiss
+        </button>
       </div>
     </div>
   );

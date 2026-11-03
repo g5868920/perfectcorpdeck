@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
-import { Card, Disclosure, Empty, SectionTitle, Sheet, Steps } from '../components/ui';
+import { Card, Disclosure, Empty, HomeHeader, ProposedTag, SectionTitle, Sheet, Steps, SuggestionCard } from '../components/ui';
 import { CREDIT_COSTS, MUSIC, ReelProject, captionsEdited, exportFile, versionDiff } from '../state';
 import type { Route, Store } from '../store';
 
@@ -157,6 +157,23 @@ export function FinishScreen({ store, go }: { store: Store; go: (r: Route) => vo
         </span>
       </button>
 
+      {p.readyToUse && store.pending[0] && (
+        <Card tone="agent">
+          <SuggestionCard
+            compact
+            label={store.pending[0].label}
+            value={store.pending[0].value}
+            reason={store.pending[0].reason}
+            onSave={() => {
+              actions.acceptSuggestion(store.pending[0].id);
+              notify('Saved to Creator Memory for future Reels');
+            }}
+            onNotNow={() => actions.snoozeSuggestion(store.pending[0].id)}
+            onDismiss={() => actions.rejectSuggestion(store.pending[0].id)}
+          />
+        </Card>
+      )}
+
       <div className="stack">
         <button
           className="btn btn--primary btn--block btn--lg"
@@ -197,7 +214,7 @@ export function FinishScreen({ store, go }: { store: Store; go: (r: Route) => vo
       >
         <Icon name="plus" size={16} /> Start Another Reel
       </button>
-      <p className="fineprint center">Your Creator Signature is applied again automatically.</p>
+      <p className="fineprint center">Your Creator Memory is applied again automatically.</p>
     </div>
   );
 }
@@ -207,16 +224,42 @@ export function FinishScreen({ store, go }: { store: Store; go: (r: Route) => vo
 export function LibraryScreen({ store, go }: { store: Store; go: (r: Route) => void }) {
   const { state, actions } = store;
   const [confirmReset, setConfirmReset] = useState(false);
-  const items = state.projects.filter((p) => p.original || p.stage === 'draft-plan');
+  const [kind, setKind] = useState<'video' | 'image'>('video');
+  const [filter, setFilter] = useState('Reel Agent');
+  const reels = state.projects.filter((p) => p.original || p.stage === 'draft-plan');
+  const items = kind === 'video' && filter === 'Reel Agent' ? reels : [];
   return (
-    <div className="screen">
-      <div className="hero hero--tight">
-        <h2 className="hero__title">Your Reels</h2>
-        <p className="hero__sub">Your Reels on this device. Ready to Use means finished, not posted.</p>
+    <div className="screen screen--flush">
+      <HomeHeader coins={state.credits} onSettings={() => go('settings')} />
+      <div className="kindtabs" role="tablist">
+        {(['video', 'image'] as const).map((k) => (
+          <button key={k} role="tab" aria-selected={kind === k} className={kind === k ? 'is-on' : ''} onClick={() => setKind(k)}>
+            {k.toUpperCase()}
+          </button>
+        ))}
       </div>
-      {items.length === 0 && (
-        <Empty title="No Reels yet" body="Finished and draft Reels show up here." action={<button className="btn btn--primary" onClick={() => go('new')}>Create a Reel</button>} />
+      {kind === 'video' && (
+        <div className="chiprow hfilters" aria-label="Filter by tool">
+          {['Reel Agent', 'Image to Video', 'AI Agent', 'Character Animator'].map((f) => (
+            <button key={f} className={`hfilter ${filter === f ? 'is-on' : ''}`} onClick={() => setFilter(f)}>
+              {f}
+              {f === 'Reel Agent' && <ProposedTag inline>New</ProposedTag>}
+            </button>
+          ))}
+        </div>
       )}
+      {items.length === 0 && (
+        <div className="hempty">
+          <div className="hempty__art">
+            <Icon name="film" size={54} stroke={1.4} />
+          </div>
+          <p>No generated {kind === 'video' ? 'videos' : 'images'}</p>
+          <button className="btn btn--generate" onClick={() => go(filter === 'Reel Agent' && kind === 'video' ? 'reel-agent' : 'video')}>
+            Generate
+          </button>
+        </div>
+      )}
+      <div className="screen__pad">
       <ul className="history">
         {items.map((p) => {
           const look = p.applied.find((a) => a.id === 'visual');
@@ -257,14 +300,15 @@ export function LibraryScreen({ store, go }: { store: Store; go: (r: Route) => v
         <Icon name="refresh" size={14} /> Reset Demo
       </button>
       <Disclosure>Stored only in this browser (synthetic demo data). Not cloud storage.</Disclosure>
+      </div>
       <Sheet open={confirmReset} onClose={() => setConfirmReset(false)} title="Reset the demo?">
-        <p className="sheet__text">This restores the seeded Creator Signature and coins and clears History on this device.</p>
+        <p className="sheet__text">This restores the seeded Creator Memory, suggestions and demo coins, and clears History on this device.</p>
         <button
           className="btn btn--primary btn--block btn--lg"
           onClick={() => {
             actions.resetDemo();
             setConfirmReset(false);
-            go('signature');
+            go('explore');
           }}
         >
           Reset Demo

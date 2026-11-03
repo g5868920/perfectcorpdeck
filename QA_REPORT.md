@@ -1,36 +1,47 @@
-# QA report — Creator-Aware Reel Agent concept demo
+# QA report — v3 (YouCam integration + Creator Memory)
 
-Date: 2026-11-04. Environment: macOS 27, Google Chrome (headless via puppeteer-core) plus the in-app browser pane, Node 26.13.0, Vite 5.4.11.
+Date: 2026-11-04. Chrome (headless, via puppeteer-core) plus the in-app browser pane. Node 26.13.0, Vite 5.4.11. Re-run with `npm run build && npm run smoke` (needs `npm run dev`).
 
-Re-run everything with `npm run build && npm run smoke` (the smoke scripts need `npm run dev` running).
+## New UX tests (`scripts/smoke-v3.mjs`, 32 checks)
+
+| Test | Result | What was verified through the real UI |
+|---|---|---|
+| **T1** Entry flow | **PASS** | Four tabs (Explore / AI Agent / All Tools / History); Explore → Video Generator → **Create Reel** → Reel Agent → first-use offer → **Skip for Now** → New Reel with the seeded brief; skipping saves nothing |
+| **T2** Conversation entry | **PASS** | AI Agent tab → "Create a complete Reel from an idea" → **Start Reel Agent**; a typed Reel request is also recognised; lands in the same New Reel with the same Memory (6 defaults) |
+| **T3** Optional setup | **PASS** | Example description → 6 structured suggestions; nothing saved before review; one excluded and one edited; explicit Save stores only the reviewed values; continues to New Reel |
+| **T4** Memory persistence | **PASS** | The first plan uses saved Memory; after a page refresh, a second brief reuses it with no retyping |
+| **T5** One-off override | **PASS** | Cool Night Look applies only to that Reel (cool storyboard); the saved Visual Style is still Warm Cinematic after refresh; a one-off creates no suggestion |
+| **T6** Continuous learning | **PASS** | One choice in one Reel → no suggestion; the same choice in 2 Reels → pending suggestion with a reason; pending doesn't change Memory; **Not Now** → snoozed, unchanged; **Dismiss** → rejected, unchanged; **Save** → Memory updated |
+| **T7** Memory management sync | **PASS** | Settings → PREFERENCES → Creator Memory opens the Hub; a Hub edit shows in New Reel; "Make default" in New Reel updates the Hub; the Settings row count matches the store |
+| Page errors | **PASS** | None during the run |
+
+## Regression and quality
 
 | Area | Result | Evidence |
 |---|---|---|
-| Design continuity (one light YouCam-aligned system) | **PASS** | All tokens come from `src/theme.ts`. The canvas is light and dark is used only behind the video player. The same app bar, coin pill, step bar, cards and CTAs appear on every screen (see `screenshots/`). |
-| S1 Creator Signature | **PASS** | Add / edit / delete / disable work. The suggestion is saved only on **Save to Signature** (automated check). |
-| S2 New Reel | **PASS** | Seeded brief; optional media input and demo samples; "Using your Creator Signature · 6 defaults"; This-Reel-only override. |
-| S3 Agent Plan | **PASS** | Hook, editable script, reorderable 4-scene storyboard, settings tagged Signature / This Reel only, source plan, DEMO coin quote, confirmation sheet, Edit Plan. |
-| S4 Create + complete Reel | **PASS** | 6 job stages with no percentages or durations. Real playback: narration, music and video advance together (measured drift ≤0.1s), and captions switch on cue. |
-| S5 Targeted revision | **PASS** | Caption text and style update the preview. Music switch changes the audio source. Scene 02 switches to the prepared alternate, with a coin quote first. Original / Revised compare, Keep Original and Use Revision all work. |
-| S6 Ready to Use / History | **PASS** | Draft vs Ready to Use are distinct. Save is enabled only after Ready to Use. Export downloads a real MP4 matching the chosen version, with the caption limitation labelled. Publishing is marked separate and later. Start Another Reel works. |
-| Exception state | **PASS** | Insufficient demo coins shows "We couldn't complete this revision. Your previous Reel is safe." Edit Request, Try Again (review credits) and Keep Original all recover; nothing is charged. |
-| **Test A** — Repeat creation | **PASS** | The second brief's plan reuses hook, voice, captions, music and format without retyping. |
-| **Test B** — Creative override | **PASS** | Cool Night Look changes only the second Reel (cool storyboard stills). The Signature still says Warm Cinematic after a refresh. |
-| **Test C** — Targeted revision | **PASS** | Edited caption, switched music and replaced Scene 02 all show in the preview. The original stays intact and comparable. The revision is saved as Ready to Use. |
-| Complete playable Reel / media | **PASS** | 20s, 9:16, 4 scenes, Mandarin narration, original music, timed Traditional Chinese captions. Export loudness is about −12 dBFS with narration and music, about −25 dBFS for the music bed alone. |
-| Autoplay restriction | **PASS** | When audio playback is refused (emulated), the muted video still plays and a "Sound was blocked — tap to enable" button appears. Tapping it resumes narration and music in sync (`smoke:autoplay`). Nothing autoplays; there is always a Play button. |
-| Refresh / persistence / Reset Demo | **PASS** | State survives reload. Reset restores the seed: 6 defaults, 120 coins, pending suggestion, empty History. |
-| Responsive (375×667, 430×932, 768×1024, 1440×900) | **PASS** | 32/32 screen × size checks: no horizontal overflow, the frame fits, no console errors (`smoke:layout`). |
-| Accessibility (basic) | **PASS, with a note** | Labelled controls, `aria-pressed` / `aria-selected` on toggles and tabs, visible focus rings. Muted, violet, warn and success text are ≥4.5:1. **Note:** white text over the magenta end of the CTA gradient is 3.6:1. Most CTA text sits over the blue/indigo part (4.5–5.7:1). |
-| Screenshot readiness | **PASS** | Eight PNGs, all 1179×2556 (393×852 @3x), from real app states with no browser chrome: `S1…S6`, `extra-history`, `extra-exception`. |
+| **T8** Regression (`smoke-journeys.mjs`, 18 checks) | **PASS** | Suggestion approval; first Reel through the new task-first entry; 6 stages → preview; **Test C** (caption edit visible, music switched, Scene 02 alternate, original untouched, revision saved as Ready to Use); export MP4 present; **Tests A/B**; exception shown with no charge and recovered via Try Again; Reset Demo restores the seed |
+| Playback (sound-blocked fallback) | **PASS** | When audio is refused, the muted video still plays and a "tap to enable" prompt appears; tapping it resumes narration and music in sync |
+| Responsive layout (`smoke-layout.mjs`) | **PASS** | 15 screens × 4 sizes (375×667, 430×932, 768×1024, 1440×900) = 60 checks: no horizontal overflow, frame fits, no console errors |
+| Navigation | **PASS** | Back uses an in-app history stack with sensible fallbacks; AI Agent opens full-screen without a tab bar (as in the real app); All Tools has X close; the presenter rail is hidden on phones and in capture mode |
+| Existing vs proposed clarity | **PASS** | Every proposed element carries a "Proposed" / "Concept" tag; out-of-scope existing tools explain themselves; no personal data or real balances |
+| Design alignment | **PASS for review** | Matches `visual-references/`: white canvas, round indigo feature icons with HOT/NEW badges, black/lavender filter chips, coin pill, indigo segment, gradient-bordered options, Settings section bands, History tabs and filters |
+| Build / typecheck | **PASS** | `tsc --noEmit` and `vite build` succeed |
 
-## Unresolved / honest limitations
+## Review screenshots (`screenshots/v3-review/`, 1179×2556)
 
-1. **Caption edits are not in the exported MP4.** The four prepared exports use the original Bold White captions. The Finish screen says so in a visible warning.
-2. **Re-voicing edited script lines is not simulated.** Edit Voiceover offers preview-only voice and music levels and says so.
-3. **Only Scene 02 has an alternate.** Replace is disabled, with an explanation, for Scenes 01, 03 and 04.
-4. **The second brief (bookstore) has no prepared video.** It produces a plan saved as a draft, which is enough for Tests A and B.
-5. **Narration voice licensing:** the macOS system voice fits personal, non-commercial use (an interview demo). Check before commercial reuse.
-6. **No backup screen recording.** ffmpeg isn't installed, so none was produced. Record one with QuickTime while presenting.
-7. **The design is inferred from store screenshots** (v1.32.1), not official tokens. It is YouCam-inspired, not identical.
-8. **Not tested on a physical iPhone or in Safari.** Testing was in Chrome only.
+1. `1-explore.png` — YouCam-aligned Explore (Video Generator is the working entry); `1b-ai-video-create-reel.png` — the proposed Create Reel card on AI Video
+2. `2-ai-agent.png` — the existing-style AI Agent with the proposed Reel prompt; `2b-ai-agent-reel-reply.png` — after tapping it
+3. `3-creator-memory-hub.png` — the Hub (Saved); `3b-memory-suggestions.png` — a pending suggestion with its reason
+4. `4-first-use-offer.png` — Personalize Your Reel Agent; `4b-setup-review.png` — reviewing structured suggestions before Save
+5. `5-new-reel-memory.png` — New Reel with "Using Creator Memory" (View / Manage / Customize)
+6. `6-agent-plan-memory.png` — the Agent Plan showing how Memory shaped each part
+
+Extra: `extra-settings-preferences.png` — Settings → PREFERENCES → Creator Memory (proposed row).
+
+## Open items
+
+1. ~~Recapture slide screenshots~~ **Done after approval:** `screenshots/S1-creator-memory.png` … `S6-finish.png` plus `extra-history.png` and `extra-exception.png` are recaptured in the v3 UI (1179×2556). Slide 07 uses S1–S3; Slide 08 uses S4–S6. S6 also shows the after-finish Memory suggestion.
+2. The learning rule and setup extraction are deterministic simulations (documented). There is no real model.
+3. Plan-only settings (e.g. Cool Night on the coffee brief, warm narration) don't change the prepared media. They are labelled in the plan.
+4. Not tested in Safari or on a physical iPhone. There's no backup recording.
+5. The **dark sign-in strip** on AI Video and the **PRO banner** in Settings were left out on purpose (account and payment flows are out of scope). Confirm that's acceptable.

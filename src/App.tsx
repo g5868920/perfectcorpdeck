@@ -3,36 +3,45 @@ import { Icon } from './components/Icon';
 import { AppBar, BottomNav } from './components/ui';
 import { CreateScreen, PreviewScreen } from './screens/Create';
 import { ErrorScreen, FinishScreen, LibraryScreen } from './screens/Finish';
+import { MemoryHubScreen, ReelAgentScreen, SetupScreen } from './screens/Memory';
 import { NewReelScreen } from './screens/NewReel';
-import { RefineScreen } from './screens/Refine';
 import { PlanScreen } from './screens/Plan';
-import { SignatureScreen } from './screens/Signature';
+import { RefineScreen } from './screens/Refine';
+import { AgentScreen, ExploreScreen, SettingsScreen, ToolsScreen, VideoGenScreen } from './screens/Shell';
+import { COFFEE_BRIEF } from './state';
+import { Route, TAB_ROUTES, useRoute, useStore } from './store';
 import { theme } from './theme';
-import { Route, useRoute, useStore } from './store';
 
-const TITLES: Record<Route, string> = {
-  signature: 'Signature',
-  new: 'New Reel',
-  plan: 'Agent Plan',
-  create: 'Creating Reel',
-  preview: 'Your Reel',
-  refine: 'Refine Your Reel',
-  finish: 'Finish Your Reel',
-  library: 'History',
-  error: 'Revision',
+/** Pushed (non-tab) screens that use the shared app bar. Existing-app screens draw their own headers. */
+const BAR: Partial<Record<Route, { title: string; proposed?: boolean; back: Route }>> = {
+  'reel-agent': { title: 'Reel Agent', proposed: true, back: 'explore' },
+  setup: { title: 'Creator Memory', proposed: true, back: 'reel-agent' },
+  memory: { title: 'Creator Memory', proposed: true, back: 'reel-agent' },
+  new: { title: 'New Reel', back: 'reel-agent' },
+  plan: { title: 'Agent Plan', back: 'new' },
+  create: { title: 'Creating Reel', back: 'reel-agent' },
+  preview: { title: 'Your Reel', back: 'library' },
+  refine: { title: 'Refine Your Reel', back: 'preview' },
+  finish: { title: 'Finish Your Reel', back: 'preview' },
+  error: { title: 'Revision', back: 'refine' },
 };
 
-const BACK: Partial<Record<Route, Route>> = { plan: 'new', preview: 'library', refine: 'preview', finish: 'preview', error: 'refine' };
-
-const JUMPS: { r: Route; label: string; needsReel?: boolean }[] = [
-  { r: 'signature', label: 'S1 · Creator Signature' },
-  { r: 'new', label: 'S2 · New Reel' },
-  { r: 'plan', label: 'S3 · Agent Plan' },
-  { r: 'preview', label: 'S4 · Complete Reel', needsReel: true },
-  { r: 'refine', label: 'S5 · Refine', needsReel: true },
-  { r: 'finish', label: 'S6 · Finish', needsReel: true },
-  { r: 'library', label: 'S6 · History' },
-  { r: 'error', label: 'Exception state', needsReel: true },
+const JUMPS: { r: Route; label: string; group: string; needsReel?: boolean }[] = [
+  { group: 'Existing app (recreated)', r: 'explore', label: 'Explore' },
+  { group: 'Existing app (recreated)', r: 'video', label: 'AI Video → Create Reel' },
+  { group: 'Existing app (recreated)', r: 'agent', label: 'AI Agent → Reel prompt' },
+  { group: 'Existing app (recreated)', r: 'tools', label: 'All Tools' },
+  { group: 'Existing app (recreated)', r: 'settings', label: 'Settings → Preferences' },
+  { group: 'Proposed: Reel Agent', r: 'reel-agent', label: 'Reel Agent home' },
+  { group: 'Proposed: Reel Agent', r: 'setup', label: 'First-use setup' },
+  { group: 'Proposed: Reel Agent', r: 'memory', label: 'Creator Memory Hub' },
+  { group: 'Proposed: Reel Agent', r: 'new', label: 'New Reel' },
+  { group: 'Proposed: Reel Agent', r: 'plan', label: 'Agent Plan' },
+  { group: 'Proposed: Reel Agent', r: 'preview', label: 'Complete Reel', needsReel: true },
+  { group: 'Proposed: Reel Agent', r: 'refine', label: 'Refine', needsReel: true },
+  { group: 'Proposed: Reel Agent', r: 'finish', label: 'Finish', needsReel: true },
+  { group: 'Proposed: Reel Agent', r: 'library', label: 'History' },
+  { group: 'Proposed: Reel Agent', r: 'error', label: 'Exception state', needsReel: true },
 ];
 
 const capture = new URLSearchParams(window.location.search).has('capture');
@@ -55,24 +64,59 @@ function useFrameZoom() {
 
 export function App() {
   const store = useStore();
-  const [route, go] = useRoute();
+  const { route, go, back } = useRoute();
   const zoom = useFrameZoom();
   const scroller = useRef<HTMLDivElement>(null);
+  const { state, actions } = store;
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: 0 });
   }, [route]);
 
-  const back = BACK[route];
-  const showNav = ['signature', 'new', 'library'].includes(route);
+  /** Both entry points (task-first & conversation-first) land in the SAME workflow and Memory. */
+  const startReel = (brief?: string) => {
+    const isFirst = !state.projects.some((p) => p.original);
+    actions.startReel(brief ?? (isFirst ? COFFEE_BRIEF : ''));
+    go('new');
+  };
+  const openReelAgent = () => go('reel-agent');
+
+  const bar = BAR[route];
+  const onBack = () => {
+    if (!bar) return;
+    // leaving the plan returns to the same brief (never starts a new project)
+    if (route === 'plan' && store.current) actions.patchProject(store.current.id, { stage: 'brief' });
+    back(bar.back);
+  };
 
   let screen;
   switch (route) {
-    case 'signature':
-      screen = <SignatureScreen store={store} />;
+    case 'explore':
+      screen = <ExploreScreen store={store} go={go} />;
+      break;
+    case 'agent':
+      screen = <AgentScreen store={store} go={go} startReel={() => go('reel-agent')} />;
+      break;
+    case 'tools':
+      screen = <ToolsScreen store={store} go={go} openReelAgent={openReelAgent} />;
+      break;
+    case 'video':
+      screen = <VideoGenScreen store={store} back={() => back('explore')} openReelAgent={openReelAgent} />;
+      break;
+    case 'settings':
+      screen = <SettingsScreen store={store} back={() => back('explore')} go={go} />;
+      break;
+    case 'reel-agent':
+      screen = <ReelAgentScreen store={store} go={go} startReel={startReel} />;
+      break;
+    case 'setup':
+      screen = <SetupScreen store={store} startReel={startReel} />;
+      break;
+    case 'memory':
+      screen = <MemoryHubScreen store={store} />;
       break;
     case 'new':
-      screen = <NewReelScreen key={store.state.currentId ?? 'none'} store={store} go={go} />;
+      screen = <NewReelScreen key={state.currentId ?? 'none'} store={store} go={go} />;
       break;
     case 'plan':
       screen = <PlanScreen store={store} go={go} />;
@@ -84,7 +128,7 @@ export function App() {
       screen = <PreviewScreen store={store} go={go} />;
       break;
     case 'refine':
-      screen = <RefineScreen key={store.state.currentId ?? 'none'} store={store} go={go} />;
+      screen = <RefineScreen key={state.currentId ?? 'none'} store={store} go={go} />;
       break;
     case 'finish':
       screen = <FinishScreen store={store} go={go} />;
@@ -97,62 +141,66 @@ export function App() {
       break;
   }
 
-  const onBack = () => {
-    if (!back) return;
-    // leaving the plan returns to the same brief (never starts a new project)
-    if (route === 'plan' && store.current) store.actions.patchProject(store.current.id, { stage: 'brief' });
-    go(back);
-  };
   const jump = (j: (typeof JUMPS)[number]) => {
-    if (j.needsReel) store.actions.ensureFirstReel();
-    if (j.r === 'error') store.actions.setCredits(Math.min(store.state.credits, 5));
+    if (j.needsReel) actions.ensureFirstReel();
+    if (j.r === 'error') actions.setCredits(Math.min(state.credits, 5));
+    if (j.r === 'new') return startReel();
     go(j.r);
   };
 
+  let lastGroup = '';
   return (
     <div className={`stage ${capture ? 'stage--capture' : ''}`}>
       {!capture && (
-        <aside className="presenter" aria-label="Presenter controls">
+        <aside className="presenter" aria-label="Presenter controls (demo utility, not part of the app)">
           <p className="presenter__brand">
             <Icon name="sparkle" size={14} /> Creator-Aware Reel Agent
           </p>
-          <p className="presenter__sub">Concept demo · v2.1 · presenter controls</p>
+          <p className="presenter__sub">Concept demo v3 · presenter rail (not part of the app)</p>
           <nav className="presenter__jumps">
-            {JUMPS.map((j) => (
-              <button key={j.label} className={route === j.r ? 'is-on' : ''} onClick={() => jump(j)}>
-                {j.label}
-                {j.r === 'error' && <em>sets 5 coins</em>}
-              </button>
-            ))}
+            {JUMPS.map((j) => {
+              const head = j.group !== lastGroup ? <p className="presenter__group">{j.group}</p> : null;
+              lastGroup = j.group;
+              return (
+                <div key={j.label}>
+                  {head}
+                  <button className={route === j.r ? 'is-on' : ''} onClick={() => jump(j)}>
+                    {j.label}
+                    {j.r === 'error' && <em>sets 5 coins</em>}
+                  </button>
+                </div>
+              );
+            })}
           </nav>
           <button
             className="presenter__reset"
             onClick={() => {
               if (window.confirm('Reset the demo to its seeded starting state?')) {
-                store.actions.resetDemo();
-                go('signature');
+                actions.resetDemo();
+                go('explore');
               }
             }}
           >
             <Icon name="refresh" size={14} /> Reset Demo
           </button>
           <div className="presenter__coins">
-            <span>Demo coins: {store.state.credits}</span>
-            <button onClick={() => store.actions.setCredits(5)}>Set low (5)</button>
-            <button onClick={() => store.actions.setCredits(120)}>Restore</button>
+            <span>Demo coins: {state.credits}</span>
+            <button onClick={() => actions.setCredits(5)}>Set low (5)</button>
+            <button onClick={() => actions.setCredits(120)}>Restore</button>
           </div>
           <a className="presenter__link" href={`?capture#/${route}`} target="_blank" rel="noreferrer">
             Open capture view ({theme.frame.width}×{theme.frame.height})
           </a>
-          <p className="presenter__note">All data is synthetic and stored only in this browser. AI planning, generation and coins are simulated.</p>
+          <p className="presenter__note">All data is synthetic and stored only in this browser. AI planning, learning, generation and coins are simulated.</p>
         </aside>
       )}
       <div className="frame" style={{ zoom }} data-route={route}>
-        <AppBar title={TITLES[route]} coins={store.state.credits} onBack={back ? onBack : undefined} />
+        {bar && <AppBar title={bar.title} proposed={bar.proposed} coins={state.credits} onBack={onBack} />}
         <div className="frame__scroll" ref={scroller}>
           {screen}
         </div>
-        {showNav && <BottomNav route={route} go={go} />}
+        {/* AI Agent opens full-screen with its chat bar (as in the real app), so no tab bar there */}
+        {TAB_ROUTES.includes(route) && route !== 'agent' && <BottomNav route={route} go={go} />}
         {store.toast && (
           <div className="toast" role="status" key={store.toast.id}>
             <Icon name="check" size={15} /> {store.toast.text}

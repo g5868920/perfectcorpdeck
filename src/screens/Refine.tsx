@@ -227,7 +227,7 @@ export function RefineScreen({ store, go }: { store: Store; go: (r: Route) => vo
                 <span className="musicopt__text">
                   <b>
                     {MUSIC[m].name}
-                    {m === 'lofi' && <em className="chip chip--sig">Signature</em>}
+                    {state.memory.find((x) => x.id === 'music' && x.enabled)?.value === MUSIC[m].name && <em className="chip chip--sig">Memory</em>}
                   </b>
                   <span className="muted">{MUSIC[m].desc}</span>
                 </span>
