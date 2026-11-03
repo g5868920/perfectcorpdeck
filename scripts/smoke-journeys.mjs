@@ -44,8 +44,8 @@ await page.goto(BASE + '#/memory', { waitUntil: 'networkidle0' });
 // S1 (Creator Memory): suggestion requires approval
 let s = await state();
 check('S1 suggestion not saved before approval', !s.memory.some((x) => x.id === 'hook-length'));
-await click('Suggestions');
-await click('Save to Creator Memory');
+await click('Pending');
+await click('Accept');
 await wait(200);
 s = await state();
 check('S1 Save to Creator Memory adds preference', s.memory.some((x) => x.id === 'hook-length'));
@@ -55,6 +55,7 @@ await page.goto(BASE + '#/explore', { waitUntil: 'networkidle0' });
 await click('Video Generator', '.feature');
 await click('Create Reel');
 await click('Skip for Now');
+await click('Start from an Idea');
 await wait(300);
 check('S2 brief seeded', (await page.$eval('.promptbox textarea', (t) => t.value)) === 'A cozy weekend coffee ritual.');
 await click('Plan My Reel');
@@ -108,6 +109,7 @@ check('S6 export file exists', head === 'video/mp4', href.split('/').pop());
 
 // Journey A + B
 await click('Start Another Reel');
+await click('Start from an Idea');
 await wait(300);
 await click('An evening bookstore visit');
 await wait(150);
@@ -142,7 +144,12 @@ await click('Replace Scene');
 await wait(150);
 await click('Use original Scene 02 again');
 await wait(150);
-await page.evaluate(() => [...document.querySelectorAll('.presenter button')].find((b) => b.innerText.includes('Set low')).click()); // presenter demo control
+await page.evaluate(() => {
+  const head = [...document.querySelectorAll('.railgroup__head')].find((h) => h.innerText.includes('04'));
+  if (head.getAttribute('aria-expanded') !== 'true') head.click();
+});
+await wait(150);
+await page.evaluate(() => [...document.querySelectorAll('.presenter button')].find((b) => b.innerText.includes('Set low')).click()); // presenter demo control (group 04)
 await wait(150);
 await wait(150);
 await click('Replace Scene 02');

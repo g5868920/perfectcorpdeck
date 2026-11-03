@@ -2,15 +2,16 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Card, Disclosure, ProposedTag, SuggestionCard } from '../components/ui';
-import { CATEGORIES, CATEGORY_LABEL, CategoryId, ExtractedPref, MemoryItem, OPTIONS, REPEAT_THRESHOLD, SETUP_EXAMPLE, extractPreferences } from '../state';
+import { CATEGORIES, CATEGORY_LABEL, CategoryId, ExtractedPref, KEY_CATEGORY, KEY_LABEL, MemoryItem, OPTIONS, REPEAT_THRESHOLD, SERIES_LABEL, SETUP_EXAMPLE, SUPPORTED_KEYS, extractPreferences } from '../state';
+import { routeParam } from '../store';
 import type { Route, Store } from '../store';
 
 /* ------------------------------------------------------------------ Reel Agent landing */
 
-export function ReelAgentScreen({ store, go, startReel }: { store: Store; go: (r: Route) => void; startReel: (brief?: string) => void }) {
+export function ReelAgentScreen({ store, go }: { store: Store; go: (r: Route) => void }) {
   const { state, actions, pending } = store;
   const saved = state.memory.filter((m) => m.enabled);
-  const recent = state.projects.filter((p) => p.original || p.stage === 'draft-plan').slice(0, 3);
+  const recent = state.projects.filter((p) => p.original || p.mOriginal || p.stage === 'draft-plan').slice(0, 3);
   return (
     <div className="screen">
       <div className="hero hero--tight">
@@ -33,7 +34,7 @@ export function ReelAgentScreen({ store, go, startReel }: { store: Store; go: (r
               className="btn btn--ghost btn--block"
               onClick={() => {
                 actions.skipSetup();
-                startReel();
+                go('mode');
               }}
             >
               Skip for Now
@@ -64,7 +65,7 @@ export function ReelAgentScreen({ store, go, startReel }: { store: Store; go: (r
         <Icon name="arrowRight" size={18} />
       </button>
 
-      <button className="btn btn--primary btn--block btn--lg" onClick={() => startReel()}>
+      <button className="btn btn--primary btn--block btn--lg" onClick={() => go('mode')}>
         <Icon name="plus" size={16} /> Start a New Reel
       </button>
 
@@ -84,7 +85,7 @@ export function ReelAgentScreen({ store, go, startReel }: { store: Store; go: (r
                     } else go('finish');
                   }}
                 >
-                  <img src={p.pack === 'coffee' ? 'media/scene1.jpg' : 'media/bookstore1-warm.jpg'} alt="" />
+                  <img src={p.mode === 'media' ? 'media/yakiniku/platter.jpg' : p.pack === 'coffee' ? 'media/scene1.jpg' : 'media/bookstore1-warm.jpg'} alt="" />
                   <span className="historyrow__body">
                     <b>{p.brief}</b>
                     <span className="muted">{p.stage === 'draft-plan' ? 'Draft plan' : p.readyToUse ? 'Ready to Use' : 'Draft'}</span>
@@ -229,19 +230,32 @@ export function SetupScreen({ store, startReel }: { store: Store; startReel: (br
 
 /* ------------------------------------------------------------------ Creator Memory Hub */
 
-function MemoryRow({ item, store }: { item: MemoryItem; store: Store }) {
+function MemoryRow({
+  item,
+  onSave,
+  onDelete,
+  onToggle,
+  notify,
+}: {
+  item: MemoryItem;
+  onSave: (v: string) => string | null;
+  onDelete: () => void;
+  onToggle: () => void;
+  notify: (t: string) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.value);
   const opts = OPTIONS[item.id];
   const save = () => {
     const v = draft.trim();
     if (v && v !== item.value) {
-      store.actions.updateMemory(item.id, v);
-      store.notify(`${item.label} updated in Creator Memory`);
+      const refused = onSave(v);
+      if (refused) return notify(`Not saved — ${refused}. Keep it in the Reel brief instead.`);
+      notify(`${item.label} updated`);
     }
     setEditing(false);
   };
-  const SOURCE: Record<MemoryItem['source'], string> = { seed: 'Saved', creator: 'Added by you', setup: 'From setup', suggestion: 'Saved from suggestion' };
+  const SOURCE: Record<MemoryItem['source'], string> = { seed: 'Saved', creator: 'Added by you', setup: 'From setup', suggestion: 'Accepted suggestion' };
   return (
     <li className={`sigrow ${item.enabled ? '' : 'is-off'}`}>
       <div className="sigrow__body">
@@ -282,18 +296,11 @@ function MemoryRow({ item, store }: { item: MemoryItem; store: Store }) {
           <button className="iconbtn iconbtn--ghost" aria-label={`Edit ${item.label}`} onClick={() => setEditing(true)}>
             <Icon name="edit" size={16} />
           </button>
-          <button
-            className="iconbtn iconbtn--ghost"
-            aria-label={`Delete ${item.label}`}
-            onClick={() => {
-              store.actions.removeMemory(item.id);
-              store.notify(`${item.label} deleted from Creator Memory`);
-            }}
-          >
+          <button className="iconbtn iconbtn--ghost" aria-label={`Delete ${item.label}`} onClick={onDelete}>
             <Icon name="trash" size={16} />
           </button>
           <label className="switch" title={item.enabled ? 'Applied to new Reels' : 'Not applied'}>
-            <input type="checkbox" checked={item.enabled} onChange={() => store.actions.toggleMemory(item.id)} aria-label={`Apply ${item.label} to new Reels`} />
+            <input type="checkbox" checked={item.enabled} onChange={onToggle} aria-label={`Apply ${item.label} to new Reels`} />
             <span />
           </label>
         </div>
@@ -302,37 +309,52 @@ function MemoryRow({ item, store }: { item: MemoryItem; store: Store }) {
   );
 }
 
-function AddRow({ category, store, onDone }: { category: CategoryId; store: Store; onDone: () => void }) {
-  const keyOpts = OPTIONS[category];
-  const [value, setValue] = useState(keyOpts?.[0] ?? '');
-  const [label, setLabel] = useState(category === 'avoid' ? 'Avoid' : CATEGORIES.find((c) => c.id === category)!.label);
+/** Add a preference: pick a supported key (or "Avoid") and a value. Refuses campaign/claim/customer text. */
+function AddRow({ keys, onAdd, onDone }: { keys: string[]; onAdd: (key: string, value: string) => string | null; onDone: () => void }) {
+  const [key, setKey] = useState(keys[0]);
+  const opts = key === 'avoid' ? undefined : OPTIONS[key];
+  const [value, setValue] = useState(opts?.[0] ?? '');
+  const [err, setErr] = useState<string | null>(null);
   return (
     <div className="addform">
-      {category !== 'avoid' && (
+      {keys.length > 1 && (
         <label>
-          Name
-          <input value={label} onChange={(e) => setLabel(e.target.value)} />
+          Preference
+          <select
+            value={key}
+            onChange={(e) => {
+              setKey(e.target.value);
+              setValue(e.target.value === 'avoid' ? '' : OPTIONS[e.target.value]?.[0] ?? '');
+            }}
+          >
+            {keys.map((k) => (
+              <option key={k} value={k}>
+                {k === 'avoid' ? 'Avoid (things to avoid)' : KEY_LABEL[k]}
+              </option>
+            ))}
+          </select>
         </label>
       )}
       <label>
-        {category === 'avoid' ? 'Things to avoid' : 'Default'}
-        {keyOpts ? (
+        {key === 'avoid' ? 'Things to avoid' : 'Default'}
+        {opts ? (
           <select value={value} onChange={(e) => setValue(e.target.value)}>
-            {keyOpts.map((o) => (
+            {opts.map((o) => (
               <option key={o}>{o}</option>
             ))}
           </select>
         ) : (
-          <input value={value} onChange={(e) => setValue(e.target.value)} placeholder={category === 'avoid' ? 'e.g. No flashing text' : ''} />
+          <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="e.g. No flashing text" />
         )}
       </label>
+      {err && <p className="formerr">Not saved — {err}. Brand campaign details, product claims and customer info stay in each Reel’s brief.</p>}
       <div className="btnrow">
         <button
           className="btn btn--primary btn--sm"
-          disabled={!value.trim() || !label.trim()}
+          disabled={!value.trim()}
           onClick={() => {
-            store.actions.addMemory(category, label.trim(), value.trim());
-            store.notify(`Added to Creator Memory`);
+            const refused = onAdd(key, value.trim());
+            if (refused) return setErr(refused);
             onDone();
           }}
         >
@@ -346,42 +368,52 @@ function AddRow({ category, store, onDone }: { category: CategoryId; store: Stor
   );
 }
 
-type HubTab = 'saved' | 'suggestions' | 'manage';
+type HubTab = 'identity' | 'series' | 'suggestions' | 'manage';
+const KEYS_FOR_CATEGORY = (c: CategoryId) => (c === 'avoid' ? ['avoid'] : SUPPORTED_KEYS.filter((k) => KEY_CATEGORY[k] === c));
 
 export function MemoryHubScreen({ store }: { store: Store }) {
   const { state, actions, pending, notify } = store;
-  const [tab, setTab] = useState<HubTab>('saved');
-  const [adding, setAdding] = useState<CategoryId | null>(null);
+  const initial = (routeParam('tab') as HubTab) || 'identity';
+  const [tab, setTab] = useState<HubTab>(['identity', 'series', 'suggestions', 'manage'].includes(initial) ? initial : 'identity');
+  const [adding, setAdding] = useState<string | null>(null);
   const snoozed = state.suggestions.filter((s) => s.status === 'snoozed');
   const rejected = state.suggestions.filter((s) => s.status === 'rejected');
   const noticed = Object.values(
-    state.signals.reduce<Record<string, { label: string; value: string; reels: Set<string> }>>((acc, s) => {
+    state.signals.reduce<Record<string, { label: string; value: string; reels: Set<string>; series: Set<string> }>>((acc, s) => {
       const k = `${s.key}=${s.value}`;
-      acc[k] = acc[k] ?? { label: s.label, value: s.value, reels: new Set() };
+      acc[k] = acc[k] ?? { label: s.label, value: s.value, reels: new Set(), series: new Set() };
       acc[k].reels.add(s.projectId);
+      acc[k].series.add(s.series ? SERIES_LABEL[s.series] ?? s.series : 'No series');
       return acc;
     }, {}),
   );
+  const scopeName = (scope: string) => (scope === 'global' ? 'Creator Identity' : `${state.series.find((x) => x.id === scope)?.name ?? scope} series`);
 
   return (
     <div className="screen">
       <div className="hero hero--tight">
         <p className="hero__sub">What your Reel Agent remembers about how you create. You’re in control — nothing is saved without your OK.</p>
       </div>
-      <div className="segment segment--soft" role="tablist" aria-label="Creator Memory sections">
-        <button role="tab" aria-selected={tab === 'saved'} className={tab === 'saved' ? 'is-on' : ''} onClick={() => setTab('saved')}>
-          Saved
-        </button>
-        <button role="tab" aria-selected={tab === 'suggestions'} className={tab === 'suggestions' ? 'is-on' : ''} onClick={() => setTab('suggestions')}>
-          Suggestions{pending.length ? ` · ${pending.length}` : ''}
-        </button>
-        <button role="tab" aria-selected={tab === 'manage'} className={tab === 'manage' ? 'is-on' : ''} onClick={() => setTab('manage')}>
-          Manage
-        </button>
+      <div className="segment segment--soft segment--4" role="tablist" aria-label="Creator Memory sections">
+        {(
+          [
+            ['identity', 'Identity'],
+            ['series', 'Series'],
+            ['suggestions', `Pending${pending.length ? ` · ${pending.length}` : ''}`],
+            ['manage', 'Manage'],
+          ] as [HubTab, string][]
+        ).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'is-on' : ''} onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {tab === 'saved' && (
+      {tab === 'identity' && (
         <>
+          <p className="hubintro">
+            <b>Creator Identity</b> · your long-term defaults for every Reel.
+          </p>
           {pending.length > 0 && (
             <button className="newsuggest" onClick={() => setTab('suggestions')}>
               <span className="agentdot">
@@ -389,7 +421,7 @@ export function MemoryHubScreen({ store }: { store: Store }) {
               </span>
               <span>
                 <b>
-                  {pending.length} new suggestion{pending.length === 1 ? '' : 's'}
+                  {pending.length} pending suggestion{pending.length === 1 ? '' : 's'}
                 </b>{' '}
                 · {pending[0].label}: {pending[0].value}
               </span>
@@ -409,15 +441,31 @@ export function MemoryHubScreen({ store }: { store: Store }) {
                     <Icon name="plus" size={14} /> Add
                   </button>
                 </div>
-                {adding === c.id && <AddRow category={c.id} store={store} onDone={() => setAdding(null)} />}
+                {adding === c.id && (
+                  <AddRow
+                    keys={KEYS_FOR_CATEGORY(c.id)}
+                    onAdd={(k, v) => (k === 'avoid' ? actions.addMemory('avoid', 'Avoid', v) : actions.addMemory(KEY_CATEGORY[k], KEY_LABEL[k], v))}
+                    onDone={() => setAdding(null)}
+                  />
+                )}
                 {items.length ? (
                   <ul className="siglist siglist--flat">
                     {items.map((i) => (
-                      <MemoryRow key={`${i.id}-${i.value}-${i.enabled}`} item={i} store={store} />
+                      <MemoryRow
+                        key={`${i.id}-${i.value}-${i.enabled}`}
+                        item={i}
+                        notify={notify}
+                        onSave={(v) => actions.updateMemory(i.id, v)}
+                        onDelete={() => {
+                          actions.removeMemory(i.id);
+                          notify(`${i.label} deleted from Creator Memory`);
+                        }}
+                        onToggle={() => actions.toggleMemory(i.id)}
+                      />
                     ))}
                   </ul>
                 ) : (
-                  adding !== c.id && <p className="memcat__empty">Not set — the Agent uses a neutral default.</p>
+                  adding !== c.id && <p className="memcat__empty">Not set — the Agent uses the app default.</p>
                 )}
               </section>
             );
@@ -425,8 +473,56 @@ export function MemoryHubScreen({ store }: { store: Store }) {
         </>
       )}
 
+      {tab === 'series' && (
+        <>
+          <p className="hubintro">
+            <b>Content / Series preferences</b> · apply only to Reels in that series, on top of your Creator Identity.
+          </p>
+          {state.series.map((sr) => (
+            <section key={sr.id} className={`memcat seriescard ${sr.enabled ? '' : 'is-off'}`} data-series={sr.id}>
+              <div className="memcat__head">
+                <span className="memcat__icon memcat__icon--series">
+                  <Icon name="layers" size={16} />
+                </span>
+                <h3>
+                  {sr.name}
+                  <span className="muted seriescard__desc">{sr.description}</span>
+                </h3>
+                <label className="switch" title={sr.enabled ? 'Series active' : 'Series off'}>
+                  <input type="checkbox" checked={sr.enabled} onChange={() => actions.toggleSeries(sr.id)} aria-label={`Use ${sr.name} series`} />
+                  <span />
+                </label>
+              </div>
+              <ul className="siglist siglist--flat">
+                {sr.items.map((i) => (
+                  <MemoryRow
+                    key={`${i.id}-${i.value}-${i.enabled}`}
+                    item={i}
+                    notify={notify}
+                    onSave={(v) => actions.updateSeriesItem(sr.id, i.id, v)}
+                    onDelete={() => actions.removeSeriesItem(sr.id, i.id)}
+                    onToggle={() => actions.toggleSeriesItem(sr.id, i.id)}
+                  />
+                ))}
+              </ul>
+              {adding === sr.id ? (
+                <AddRow keys={[...SUPPORTED_KEYS.filter((k) => !sr.items.some((x) => x.id === k)), 'avoid']} onAdd={(k, v) => actions.addSeriesItem(sr.id, k, v)} onDone={() => setAdding(null)} />
+              ) : (
+                <button className="btn btn--ghost btn--sm" onClick={() => setAdding(sr.id)}>
+                  <Icon name="plus" size={14} /> Add preference
+                </button>
+              )}
+              {sr.id === 'sponsored-beauty' && <p className="fineprint">Brand names, campaign instructions and product claims belong in each sponsored Reel — they’re never saved here.</p>}
+            </section>
+          ))}
+        </>
+      )}
+
       {tab === 'suggestions' && (
         <>
+          <p className="hubintro">
+            <b>Pending AI suggestions</b> · noticed from your choices. They do nothing until you accept.
+          </p>
           {pending.length === 0 && (
             <Card>
               <p className="muted">No suggestions right now. The Agent will ask when it notices a choice you repeat.</p>
@@ -438,9 +534,11 @@ export function MemoryHubScreen({ store }: { store: Store }) {
                 label={sg.label}
                 value={sg.value}
                 reason={sg.reason}
+                scope={scopeName(sg.scope)}
+                provenance={sg.provenance}
                 onSave={() => {
                   actions.acceptSuggestion(sg.id);
-                  notify('Saved to Creator Memory');
+                  notify(`Saved to ${scopeName(sg.scope)}`);
                 }}
                 onNotNow={() => {
                   actions.snoozeSuggestion(sg.id);
@@ -448,7 +546,7 @@ export function MemoryHubScreen({ store }: { store: Store }) {
                 }}
                 onDismiss={() => {
                   actions.rejectSuggestion(sg.id);
-                  notify('Dismissed. I won’t suggest this again.');
+                  notify('Rejected. I won’t suggest this again.');
                 }}
               />
             </Card>
@@ -473,8 +571,8 @@ export function MemoryHubScreen({ store }: { store: Store }) {
           <Card className="howitworks">
             <b>How suggestions work</b>
             <p>
-              The Agent notes the creative choices you make for each Reel — like caption style, music or pacing. When you make the same choice in {REPEAT_THRESHOLD} different Reels, it asks
-              whether to remember it. One-off changes are never saved automatically.
+              The Agent notes style choices you make for each Reel — like caption style, music or pacing. When you make the same choice in {REPEAT_THRESHOLD} different Reels, it asks whether to remember it —
+              for a series if those Reels share one, otherwise for your Creator Identity. One-off changes, restaurant names, campaign notes and product claims are never used.
             </p>
             <p className="fineprint">Simulated in this demo with a simple, transparent rule — not a real learning model.</p>
           </Card>
@@ -483,9 +581,16 @@ export function MemoryHubScreen({ store }: { store: Store }) {
 
       {tab === 'manage' && (
         <>
-          <h3 className="ysub">What the Agent noticed</h3>
+          <div className="sectiontitle">
+            <h2>What the Agent noticed</h2>
+            {noticed.length > 0 && (
+              <button className="linkbtn" onClick={actions.forgetSignals}>
+                Clear
+              </button>
+            )}
+          </div>
           {noticed.length === 0 ? (
-            <p className="muted">Nothing yet. Choices you make for a Reel (overrides, plan adjustments, refinements) show up here.</p>
+            <p className="muted">Nothing yet. Style choices you make for a Reel (overrides, plan adjustments, refinements) show up here.</p>
           ) : (
             <ul className="mgmtlist">
               {noticed.map((n) => (
@@ -494,7 +599,7 @@ export function MemoryHubScreen({ store }: { store: Store }) {
                     {n.label}: <b>{n.value}</b>
                   </span>
                   <span className="muted">
-                    {n.reels.size} Reel{n.reels.size === 1 ? '' : 's'}
+                    {n.reels.size} Reel{n.reels.size === 1 ? '' : 's'} · {[...n.series].join(', ')}
                   </span>
                 </li>
               ))}
@@ -502,7 +607,7 @@ export function MemoryHubScreen({ store }: { store: Store }) {
           )}
           {rejected.length > 0 && (
             <>
-              <h3 className="ysub">Dismissed suggestions</h3>
+              <h3 className="ysub">Rejected suggestions</h3>
               <ul className="mgmtlist">
                 {rejected.map((sg) => (
                   <li key={sg.id}>
@@ -529,7 +634,7 @@ export function MemoryHubScreen({ store }: { store: Store }) {
               ))}
             </ul>
           )}
-          <Disclosure>Creator Memory is stored only in this browser (synthetic demo data). Edit, disable or delete anything in Saved.</Disclosure>
+          <Disclosure>Creator Memory is stored only in this browser (synthetic demo data).</Disclosure>
         </>
       )}
       <p className="fineprint center">

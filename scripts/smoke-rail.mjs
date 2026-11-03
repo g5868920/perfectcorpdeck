@@ -1,0 +1,41 @@
+// Presenter rail (desktop only): layered groups, Guided Demo walks all steps with correct routes, hidden on phones/capture.
+import puppeteer from 'puppeteer-core';
+const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:5173/';
+const EXPECT = ['#/explore', '#/video', '#/reel-agent', '#/mode', '#/new', '#/plan', '#/preview', '#/refine', '#/finish', '#/settings', '#/memory?tab=identity', '#/memory?tab=series', '#/memory?tab=suggestions', '#/mode'];
+const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
+const page = await browser.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e)));
+await page.setViewport({ width: 1440, height: 900 });
+await page.goto(BASE + '#/explore', { waitUntil: 'networkidle0' });
+await page.evaluate(() => localStorage.clear());
+await page.goto(BASE + '?scenario=fresh#/explore', { waitUntil: 'networkidle0' });
+await page.goto(BASE + '#/explore', { waitUntil: 'networkidle0' });
+const results = [];
+const check = (n, ok, d = '') => (results.push(!!ok), console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${d && !ok ? '  — ' + d : ''}`));
+const groups = await page.$$eval('.railgroup__head span', (s) => s.map((x) => x.innerText));
+check('rail has 4 layered groups', groups.join('|') === '01 Existing YouCam App|02 Reel Agent Experience|03 Creator Memory|04 Demo / QA Utilities', groups.join('|'));
+check('existing vs proposed vs QA are distinguished', (await page.$$eval('.railgroup__head em', (e) => e.map((x) => x.innerText).join(','))).toUpperCase() === 'EXISTING,PROPOSED,PROPOSED,QA');
+await page.evaluate(() => document.querySelector('.guide__start').click());
+const seen = [];
+for (let i = 0; i < EXPECT.length; i++) {
+  await new Promise((r) => setTimeout(r, 450));
+  const h = await page.evaluate(() => location.hash);
+  const blank = await page.evaluate(() => !document.querySelector('.frame .screen') || document.querySelector('.frame__scroll').innerText.trim().length < 20);
+  seen.push(h);
+  check(`guided step ${i + 1} → ${EXPECT[i]}`, h === EXPECT[i] && !blank, `${h} blank=${blank}`);
+  if (i < EXPECT.length - 1) await page.evaluate(() => document.querySelector('.guide__nav .is-primary').click());
+}
+const mediaShown = await page.evaluate(() => JSON.parse(localStorage.getItem('reel-agent-demo.v1')).projects.some((p) => p.mode === 'media' && p.mOriginal));
+check('guided demo prepared a media Reel without manual state edits', mediaShown);
+await page.setViewport({ width: 390, height: 844, isMobile: true });
+await page.reload({ waitUntil: 'networkidle0' });
+check('rail hidden on phone width', await page.$eval('.presenter', (e) => getComputedStyle(e).display === 'none'));
+await page.goto(BASE + '?capture#/explore', { waitUntil: 'networkidle0' });
+check('rail absent in capture mode', !(await page.$('.presenter')));
+check('no page errors', errors.length === 0, errors.join(' | '));
+await browser.close();
+const failed = results.filter((x) => !x).length;
+console.log(failed ? `${failed} FAIL of ${results.length}` : `ALL ${results.length} PASS`);
+process.exit(failed ? 1 : 0);

@@ -3,6 +3,7 @@ import { Icon } from '../components/Icon';
 import { Card, Disclosure, ProposedTag, SectionTitle, Steps } from '../components/ui';
 import { BOOKSTORE_BRIEF, COFFEE_BRIEF, OPTIONS, exclusions } from '../state';
 import type { Route, Store } from '../store';
+import { MediaBriefScreen } from './Media';
 
 const SAMPLE_MEDIA = ['media/scene1.jpg', 'media/scene3.jpg'];
 
@@ -23,6 +24,7 @@ export function NewReelScreen({ store, go }: { store: Store; go: (r: Route) => v
   }, []);
 
   if (!current || current.stage !== 'brief') return null;
+  if (current.mode === 'media') return <MediaBriefScreen store={store} go={go} />;
   const p = current;
   const enabled = state.memory.filter((m) => m.enabled && m.category !== 'avoid');
   const avoid = exclusions(state.memory);

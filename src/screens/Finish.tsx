@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Card, Disclosure, Empty, HomeHeader, ProposedTag, SectionTitle, Sheet, Steps, SuggestionCard } from '../components/ui';
-import { CREDIT_COSTS, MUSIC, ReelProject, captionsEdited, exportFile, versionDiff } from '../state';
+import { CREDIT_COSTS, MUSIC, ReelProject, captionsEdited, exportFile, mediaDiff, mediaTimeline, versionDiff } from '../state';
 import type { Route, Store } from '../store';
+import { MediaExport } from './Media';
 
 /* ------------------------------------------------------------------ exception */
 
@@ -106,18 +107,23 @@ function versionOf(p: ReelProject) {
 
 export function FinishScreen({ store, go }: { store: Store; go: (r: Route) => void }) {
   const { current: p, actions, notify } = store;
-  if (!p || !p.original) {
+  if (!p || !(p.original || p.mOriginal)) {
     return (
       <div className="screen">
-        <Empty title="No Reel to finish" body="Generate a Reel first." action={<button className="btn btn--primary" onClick={() => go('new')}>Start a Reel</button>} />
+        <Empty title="No Reel to finish" body="Generate a Reel first." action={<button className="btn btn--primary" onClick={() => go('mode')}>Start a Reel</button>} />
       </div>
     );
   }
-  const v = versionOf(p)!;
-  const diffs = versionDiff(p.original, v);
-  const previewOnly = captionsEdited(v);
-  const file = exportFile(v);
-  const thumb = 'media/scene1.jpg';
+  const media = p.mode === 'media';
+  const mv = media ? (p.chosen === 'revision' && p.mRevision ? p.mRevision : p.mOriginal!) : null;
+  const v = media ? null : versionOf(p)!;
+  const diffs = media ? mediaDiff(p.mOriginal!, mv!) : versionDiff(p.original!, v!);
+  const previewOnly = !media && captionsEdited(v!);
+  const file = media ? '' : exportFile(v!);
+  const firstSample = media ? p.media.find((m) => m.id === mv!.slots[1] && m.source === 'sample') ?? p.media.find((m) => m.source === 'sample' && m.kind === 'image') : null;
+  const thumb = media ? (firstSample?.kind === 'image' ? firstSample.url! : 'media/yakiniku/platter.jpg') : 'media/scene1.jpg';
+  const music = MUSIC[(mv ?? v)!.music].name;
+  const dur = media ? Math.round(mediaTimeline(Object.fromEntries(p.applied.map((a) => [a.id, a]))).total) : 20;
 
   return (
     <div className="screen">
@@ -125,13 +131,14 @@ export function FinishScreen({ store, go }: { store: Store; go: (r: Route) => vo
       <Card className="finishcard">
         <div className="finishcard__thumb">
           <img src={thumb} alt="Reel cover" />
-          <span>0:20</span>
+          <span>0:{String(dur).padStart(2, '0')}</span>
         </div>
         <div className="finishcard__body">
           <span className={`status ${p.readyToUse ? 'status--ready' : 'status--draft'}`}>{p.readyToUse ? 'Ready to Use' : 'Draft'}</span>
           <h2>{p.brief}</h2>
           <p className="muted">
-            {p.chosen === 'revision' ? 'Revised version' : 'Original version'} · {MUSIC[v.music].name}
+            {p.chosen === 'revision' ? 'Revised version' : 'Original version'} · {music}
+            {media ? ` · ${p.media.length} of your files` : ''}
           </p>
           {diffs.length > 0 && <p className="finishcard__diff">{diffs.join(' · ')}</p>}
           {p.saved && (
@@ -186,10 +193,14 @@ export function FinishScreen({ store, go }: { store: Store; go: (r: Route) => vo
           <Icon name="library" size={16} /> {p.saved ? 'Saved to History' : 'Save Finished Reel'}
         </button>
         {!p.readyToUse && <p className="fineprint center">Mark it Ready to Use to save it as finished.</p>}
-        <a className="btn btn--outline btn--block btn--lg" href={file} download={`reel-${p.id}.mp4`} onClick={() => notify('Downloading the prepared MP4')}>
-          <Icon name="download" size={16} /> Export Video (MP4)
-        </a>
-        {previewOnly ? (
+        {p.mode === 'media' ? (
+          <MediaExport store={store} />
+        ) : (
+          <a className="btn btn--outline btn--block btn--lg" href={file} download={`reel-${p.id}.mp4`} onClick={() => notify('Downloading the prepared MP4')}>
+            <Icon name="download" size={16} /> Export Video (MP4)
+          </a>
+        )}
+        {p.mode === 'media' ? null : previewOnly ? (
           <Disclosure tone="warn">
             The exported MP4 includes your scene and music choice but uses the <b>original captions (Bold White)</b>. Caption text and style edits are preview-only in this demo.
           </Disclosure>
@@ -207,10 +218,7 @@ export function FinishScreen({ store, go }: { store: Store; go: (r: Route) => vo
 
       <button
         className="btn btn--ghost btn--block btn--lg nextreel"
-        onClick={() => {
-          actions.startReel('');
-          go('new');
-        }}
+        onClick={() => go('mode')}
       >
         <Icon name="plus" size={16} /> Start Another Reel
       </button>
@@ -226,7 +234,7 @@ export function LibraryScreen({ store, go }: { store: Store; go: (r: Route) => v
   const [confirmReset, setConfirmReset] = useState(false);
   const [kind, setKind] = useState<'video' | 'image'>('video');
   const [filter, setFilter] = useState('Reel Agent');
-  const reels = state.projects.filter((p) => p.original || p.stage === 'draft-plan');
+  const reels = state.projects.filter((p) => p.original || p.mOriginal || p.stage === 'draft-plan');
   const items = kind === 'video' && filter === 'Reel Agent' ? reels : [];
   return (
     <div className="screen screen--flush">
@@ -262,9 +270,9 @@ export function LibraryScreen({ store, go }: { store: Store; go: (r: Route) => v
       <div className="screen__pad">
       <ul className="history">
         {items.map((p) => {
-          const look = p.applied.find((a) => a.id === 'visual');
+          const look = p.applied.find((a) => a.id === 'visual') ?? store.resolveFor(p).visual;
           const cool = look?.value === 'Cool Night Look';
-          const img = p.pack === 'coffee' ? 'media/scene1.jpg' : `media/bookstore1-${cool ? 'cool' : 'warm'}.jpg`;
+          const img = p.mode === 'media' ? p.media.find((m) => m.source === 'sample' && m.kind === 'image')?.url ?? 'media/yakiniku/platter.jpg' : p.pack === 'coffee' ? 'media/scene1.jpg' : `media/bookstore1-${cool ? 'cool' : 'warm'}.jpg`;
           const status = p.stage === 'draft-plan' ? 'Draft plan' : p.readyToUse ? 'Ready to Use' : 'Draft';
           return (
             <li key={p.id}>
@@ -282,7 +290,7 @@ export function LibraryScreen({ store, go }: { store: Store; go: (r: Route) => v
                 <span className="historyrow__body">
                   <b>{p.brief}</b>
                   <span className="muted">
-                    {p.original ? `${p.chosen === 'revision' ? 'Revised' : 'Original'} · 20s · ` : 'Plan only · '}
+                    {p.original || p.mOriginal ? `${p.chosen === 'revision' ? 'Revised' : 'Original'} · ${p.mode === 'media' ? `${p.media.length} files` : '20s'} · ` : 'Plan only · '}
                     {look ? `${look.value}${look.override ? ' (this Reel only)' : ''}` : ''}
                   </span>
                   <span className="historyrow__tags">

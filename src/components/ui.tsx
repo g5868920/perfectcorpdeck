@@ -170,11 +170,13 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
   );
 }
 
-/** Pending Memory suggestion card with the three explicit choices. */
+/** Pending Memory suggestion card with explicit Accept / Not Now / Reject. */
 export function SuggestionCard({
   label,
   value,
   reason,
+  scope = 'Creator Identity',
+  provenance = [],
   onSave,
   onNotNow,
   onDismiss,
@@ -183,6 +185,8 @@ export function SuggestionCard({
   label: string;
   value: string;
   reason: string;
+  scope?: string;
+  provenance?: string[];
   onSave: () => void;
   onNotNow: () => void;
   onDismiss: () => void;
@@ -203,15 +207,25 @@ export function SuggestionCard({
       <p className="suggest__why">
         <Icon name="info" size={12} /> Why: {reason}
       </p>
+      {provenance.length > 0 && (
+        <ul className="suggest__prov" aria-label="Where this came from">
+          {provenance.slice(0, 3).map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+      )}
+      <p className="suggest__scope">
+        Would save to: <b>{scope}</b>
+      </p>
       <div className="btnrow">
         <button className="btn btn--primary btn--sm" onClick={onSave}>
-          <Icon name="check" size={14} /> Save to Creator Memory
+          <Icon name="check" size={14} /> Accept
         </button>
         <button className="btn btn--ghost btn--sm" onClick={onNotNow}>
           Not Now
         </button>
         <button className="btn btn--ghost btn--sm" onClick={onDismiss}>
-          Dismiss
+          Reject
         </button>
       </div>
     </div>

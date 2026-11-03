@@ -75,7 +75,8 @@ await click('Create Reel');
 check('T1 AI Video "Create Reel" → Reel Agent', (await hash()) === '#/reel-agent');
 check('T1 first-use offer shown', !!(await page.$('.personalize')));
 await click('Skip for Now');
-check('T1 Skip for Now → New Reel immediately', (await hash()) === '#/new' && (await page.$eval('.promptbox textarea', (t) => t.value)) === 'A cozy weekend coffee ritual.');
+await click('Start from an Idea');
+check('T1 Skip for Now → Choose mode → New Reel immediately', (await hash()) === '#/new' && (await page.$eval('.promptbox textarea', (t) => t.value)) === 'A cozy weekend coffee ritual.');
 check('T1 skip saved nothing', (await state()).memorySetup === 'skipped' && (await state()).memory.length === 6);
 
 /* T2 — Conversation entry: AI Agent → Reel suggestion → same flow and same Memory */
@@ -92,6 +93,7 @@ await wait(250);
 check('T2 typed request is understood', (await page.$$eval('.bubble--agent button', (b) => b.length)) > 0);
 await click('Start Reel Agent');
 await click('Start a New Reel');
+await click('Start from an Idea');
 const t2count = await page.$eval('.applied__head strong', (e) => e.innerText);
 check('T2 lands in same New Reel with same Memory', (await hash()) === '#/new' && t2count.includes('6 defaults'), t2count);
 
@@ -119,6 +121,7 @@ await page.evaluate(() => {
 });
 await wait(150);
 await click('Save ');
+await click('Start from an Idea');
 let s = await state();
 check(
   'T3 explicit save applies reviewed edits only',
@@ -133,6 +136,7 @@ check('T4 first plan uses saved Memory', plan1.includes('Minimal transitions') &
 await page.reload({ waitUntil: 'networkidle0' });
 await page.goto(BASE + '#/reel-agent', { waitUntil: 'networkidle0' });
 await click('Start a New Reel');
+await click('Start from an Idea');
 await planFromBrief('An evening bookstore visit');
 const plan2 = await page.$$eval('.influence__body b', (b) => b.map((x) => x.innerText));
 check('T4 second Reel reuses Memory after refresh, no retyping', plan2.includes('Minimal transitions') && plan2.includes('Warm Cinematic') && plan2.some((v) => v.includes('Short, under 3s')), plan2.join(' | '));
@@ -152,12 +156,14 @@ check('T5 one-off did not create a suggestion', !(await state()).suggestions.som
 const pendingFor = async (v) => (await state()).suggestions.find((x) => x.value === v);
 await page.goto(BASE + '#/reel-agent', { waitUntil: 'networkidle0' });
 await click('Start a New Reel');
+await click('Start from an Idea');
 await click('Customize for This Reel');
 await setValue('.override select[aria-label="Music mood for this Reel"]', 'Bright Acoustic');
 await planFromBrief('A cozy weekend coffee ritual.');
 check('T6 one choice in one Reel → no suggestion', !(await pendingFor('Bright Acoustic')));
 await page.goto(BASE + '#/reel-agent', { waitUntil: 'networkidle0' });
 await click('Start a New Reel');
+await click('Start from an Idea');
 await click('Customize for This Reel');
 await setValue('.override select[aria-label="Music mood for this Reel"]', 'Bright Acoustic');
 await planFromBrief('An evening bookstore visit');
@@ -165,18 +171,18 @@ let sg = await pendingFor('Bright Acoustic');
 check('T6 same choice in 2 Reels → pending suggestion with reason', sg?.status === 'pending' && /2 different Reels/.test(sg.reason), sg?.reason);
 check('T6 pending suggestion did not change Memory', (await mem('music')).value === 'Mellow Lo-fi');
 await page.goto(BASE + '#/memory', { waitUntil: 'networkidle0' });
-await click('Suggestions');
+await click('Pending');
 await click('Not Now', '.suggest button');
 sg = await pendingFor('Bright Acoustic');
 check('T6 Not Now → snoozed, Memory unchanged', sg.status === 'snoozed' && (await mem('music')).value === 'Mellow Lo-fi');
 await click('Review now');
-await click('Dismiss', '.suggest button');
+await click('Reject', '.suggest button');
 sg = await pendingFor('Bright Acoustic');
 check('T6 Dismiss → rejected, Memory unchanged', sg.status === 'rejected' && (await mem('music')).value === 'Mellow Lo-fi');
 await click('Manage');
 await click('Reconsider');
-await click('Suggestions');
-await click('Save to Creator Memory');
+await click('Pending');
+await click('Accept');
 check('T6 Accept → Memory updated', (await mem('music')).value === 'Bright Acoustic' && (await pendingFor('Bright Acoustic')).status === 'saved');
 
 /* T7 — Settings, Hub and creation flow stay in sync */
@@ -188,6 +194,7 @@ await setValue('.sigrow__edit select', 'Traditional Chinese, Clean Minimal');
 await click('Save', '.sigrow__edit button');
 await page.goto(BASE + '#/reel-agent', { waitUntil: 'networkidle0' });
 await click('Start a New Reel');
+await click('Start from an Idea');
 await click('View Memory');
 const cardHas = await page.$$eval('.applied__list b', (b) => b.map((x) => x.innerText));
 check('T7 Hub edit (via Settings) shows in New Reel', cardHas.includes('Traditional Chinese, Clean Minimal'));

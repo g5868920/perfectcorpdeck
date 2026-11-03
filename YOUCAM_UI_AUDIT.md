@@ -1,4 +1,4 @@
-# YouCam AI Pro — UI reference audit (v3)
+# YouCam AI Pro — UI reference audit (v3.1)
 
 Updated **2026-11-04**. The primary source is Gina's **own iPhone screenshots of the current app** in `visual-references/`. The earlier store-listing audit (App Store v1.32.1 / Google Play, Oct 2026) is kept below as secondary context.
 
@@ -78,6 +78,20 @@ All values are **sampled estimates**, not official Perfect Corp design tokens.
 | — | Reel Agent home, first-use setup, Creator Memory Hub, New Reel → Plan → Create → Refine → Finish |
 
 Existing tools outside the concept (Image Generator, AI Replace, templates, model picker, single-clip Generate, subscriptions, etc.) are shown for context only. They respond with a toast saying they're not part of this demo, so there are no dead buttons, and the single-clip Generate is visibly disabled with an explanation.
+
+
+## v3.1 additions (proposed, built on the same design language)
+
+| Proposed screen / element | Built from existing patterns |
+|---|---|
+| **Choose Creation Mode** (Use My Photos & Videos · Start from an Idea) | Rounded selection cards. The primary card uses the gradient border from AI Video's selected Duration/Resolution option |
+| **Import Media** | AI Video's gray upload box and outlined pills; thumbnails in a 9:16 grid with "Sample" (violet) or "Yours" (green) source badges and ▶ duration for clips |
+| **5 restaurants** | Gray rounded inputs like the AI Video prompt field |
+| **Content series chips** | Pill chips (lavender / indigo-outlined when selected) |
+| **Media storyboard** | Same scene cards as the idea path, but thumbnails are the actual imported media, with a footage picker |
+| **Plan source chips** | "This Reel only" (pink) · "Series: …" (green) · "Creator Identity" (indigo) · "App default" (gray) |
+| **Memory Hub tabs** | Identity · Series · Pending · Manage, using the existing indigo segmented control |
+| **Presenter rail** (desktop only) | Not part of the app. Four collapsible groups (01 Existing, 02 Reel Agent, 03 Creator Memory, 04 Demo/QA) with Existing/Proposed/QA tags and a Guided Demo; hidden on phones and in capture mode |
 
 ## Deliberate differences / not reproduced
 

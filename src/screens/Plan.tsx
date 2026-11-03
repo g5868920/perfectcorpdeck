@@ -1,53 +1,17 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
-import { Card, Disclosure, Empty, ProposedTag, SectionTitle, Sheet, Steps } from '../components/ui';
-import { AppliedSetting, CREDIT_COSTS, GENERATE_BREAKDOWN, OPTIONS, SCENES, exclusions } from '../state';
+import { Card, Disclosure, Empty, SectionTitle, Sheet, Steps } from '../components/ui';
+import { CREDIT_COSTS, GENERATE_BREAKDOWN, SCENES, exclusions, seriesOf } from '../state';
+import { MemoryInfluence } from '../components/MemoryInfluence';
+import { MediaPlanScreen } from './Media';
 import type { Route, Store } from '../store';
-
-type Applied = Record<string, AppliedSetting | undefined>;
-
-/** How each saved preference shaped the plan. `planOnly` marks choices the prepared demo media can't render. */
-function influences(a: Applied, pack: 'coffee' | 'bookstore') {
-  const hookLen = a['hook-length']?.value;
-  const pacing = a.pacing?.value;
-  const coffee = pack === 'coffee';
-  return [
-    {
-      area: 'Hook & script',
-      icon: 'bolt',
-      src: [a.hook, a['hook-length']],
-      value: [a.hook?.value, hookLen].filter(Boolean).join(' · ') || 'Neutral default',
-      effect: `${a.hook?.value?.includes('Question') ? 'Opens with a question' : 'Opens with a statement'}${hookLen?.startsWith('Short') ? ' in under 3s' : ' in about 4s'}`,
-      planOnly: false,
-    },
-    { area: 'Visual treatment', icon: 'film', src: [a.visual], value: a.visual?.value ?? 'Neutral default', effect: 'Color grade and lighting on all 4 scenes', planOnly: coffee && a.visual?.value !== 'Warm Cinematic' },
-    { area: 'Narration', icon: 'mic', src: [a.voice], value: a.voice?.value ?? 'Neutral default', effect: 'Voice for the 4 script lines', planOnly: coffee && !!a.voice && a.voice.value !== 'Mandarin, Neutral' },
-    { area: 'Music', icon: 'music', src: [a.music], value: a.music?.value ?? 'Neutral default', effect: 'Background bed under the narration', planOnly: false },
-    { area: 'Captions', icon: 'cc', src: [a.captions], value: a.captions?.value ?? 'Neutral default', effect: 'Timed to narration · style shown in preview', planOnly: false },
-    {
-      area: 'Pacing',
-      icon: 'layers',
-      src: [a.pacing],
-      value: pacing ?? 'Standard cuts (default)',
-      effect: pacing === 'Fast, dynamic cuts' ? 'Quick cuts on the beat' : pacing === 'Minimal transitions' ? 'Soft cross-fades, no flashy effects' : 'Simple cuts between scenes',
-      planOnly: coffee && pacing === 'Fast, dynamic cuts',
-    },
-  ];
-}
-
-function sourceOf(list: (AppliedSetting | undefined)[]) {
-  const set = list.filter(Boolean) as AppliedSetting[];
-  if (!set.length) return { label: 'Default', cls: '' };
-  if (set.some((x) => x.override)) return { label: 'This Reel only', cls: 'chip--override' };
-  return { label: 'Memory', cls: 'chip--sig' };
-}
 
 export function PlanScreen({ store, go }: { store: Store; go: (r: Route) => void }) {
   const { state, current: p, actions, notify } = store;
   const [confirm, setConfirm] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
-  const [adjust, setAdjust] = useState(false);
 
+  if (p && p.mode === 'media' && p.stage !== 'brief') return <MediaPlanScreen store={store} go={go} />;
   if (!p || p.stage === 'brief' || !p.script.length) {
     return (
       <div className="screen">
@@ -64,11 +28,12 @@ export function PlanScreen({ store, go }: { store: Store; go: (r: Route) => void
     );
   }
 
-  const applied: Applied = Object.fromEntries(p.applied.map((a) => [a.id, a]));
-  const rows = influences(applied, p.pack);
-  const avoid = exclusions(state.memory);
+  // live: always the current Memory + series + This-Reel overrides (never a stale snapshot)
+  const applied = store.resolveFor(p);
+  const avoid = exclusions(state.memory, seriesOf(state, p.series));
+  const kind = p.pack === 'bookstore' ? 'bookstore' : 'coffee';
   const look = applied.visual?.value === 'Cool Night Look' ? 'cool' : 'warm';
-  const scenes = SCENES[p.pack].map((s) => ({ ...s, img: s.img.replace('LOOK', look) }));
+  const scenes = SCENES[p.pack === 'bookstore' ? 'bookstore' : 'coffee'].map((s) => ({ ...s, img: s.img.replace('LOOK', look) }));
   const ordered = p.sceneOrder.map((n) => scenes.find((s) => s.n === n)!);
   const prepared = p.pack === 'coffee';
   const reordered = p.sceneOrder.join() !== '1,2,3,4';
@@ -111,74 +76,15 @@ export function PlanScreen({ store, go }: { store: Store; go: (r: Route) => void
       </Card>
 
 
-      <Card className="influence">
-        <div className="influence__head">
-          <Icon name="memory" size={16} />
-          <h3>How your Creator Memory shaped this plan</h3>
-          <ProposedTag inline />
-        </div>
-        <ul className="influence__list">
-          {rows.map((r) => {
-            const src = sourceOf(r.src);
-            return (
-              <li key={r.area}>
-                <span className="influence__icon">
-                  <Icon name={r.icon} size={15} />
-                </span>
-                <div className="influence__body">
-                  <span className="influence__area">{r.area}</span>
-                  <b>{r.value}</b>
-                  <span className="muted">
-                    {r.effect}
-                    {r.planOnly && ' · plan only (prepared demo media unchanged)'}
-                  </span>
-                </div>
-                <em className={`chip ${src.cls}`}>{src.label}</em>
-              </li>
-            );
-          })}
-          {avoid.length > 0 && (
-            <li>
-              <span className="influence__icon">
-                <Icon name="shield" size={15} />
-              </span>
-              <div className="influence__body">
-                <span className="influence__area">Avoiding</span>
-                <b>{avoid.map((m) => m.value).join(' · ')}</b>
-              </div>
-              <em className="chip chip--sig">Memory</em>
-            </li>
-          )}
-        </ul>
-        <button className="btn btn--ghost btn--sm" onClick={() => setAdjust((v) => !v)} aria-expanded={adjust}>
-          <Icon name="edit" size={14} /> {adjust ? 'Done adjusting' : 'Adjust hook & pacing for This Reel'}
-        </button>
-        {adjust && (
-          <div className="adjust">
-            {(['hook-length', 'pacing'] as const).map((key) => (
-              <div key={key} className="adjust__row">
-                <span>{key === 'pacing' ? 'Pacing' : 'Hook length'}</span>
-                <div className="segmented" role="radiogroup" aria-label={key === 'pacing' ? 'Pacing' : 'Hook length'}>
-                  {OPTIONS[key].map((o) => {
-                    const on = (applied[key]?.value ?? (key === 'pacing' ? 'Standard cuts' : 'Standard, about 4s')) === o;
-                    return (
-                      <button key={o} role="radio" aria-checked={on} className={on ? 'is-on' : ''} onClick={() => actions.setPlanOverride(p.id, key, o)}>
-                        {o.replace(', about 4s', '').replace(', under 3s', ' <3s').replace(' transitions', '').replace(', dynamic cuts', '')}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <p className="fineprint">This Reel only. The Agent notes repeated choices and may suggest saving them — it never saves on its own.</p>
-          </div>
-        )}
-      </Card>
+      <MemoryInfluence settings={applied} avoid={avoid} kind={kind} onAdjust={(k, v) => actions.setPlanOverride(p.id, k, v)} />
 
-      <SectionTitle aside={<span className="chip chip--sig">{hookStyle}</span>}>Hook · 0–4s</SectionTitle>
+      <SectionTitle aside={<span className="chip chip--sig">{hookStyle}</span>}>Hook · {applied['hook-length'].value.startsWith('Short') ? '0–3s' : '0–4s'}</SectionTitle>
       <Card className="hook">
         <p className="hook__line">「{p.script[0]}」</p>
-        <p className="muted">{rows[0].effect} — from {sourceOf(rows[0].src).label === 'Memory' ? 'your Creator Memory' : sourceOf(rows[0].src).label.toLowerCase()}.</p>
+        <p className="muted">
+          {applied.hook.value} · {applied['hook-length'].value} — {applied.hook.sourceLabel}
+          {applied['hook-length'].source !== applied.hook.source ? ` / ${applied['hook-length'].sourceLabel}` : ''}
+        </p>
       </Card>
 
       <SectionTitle aside={<span className="muted">Tap a line to edit</span>}>Storyboard & script</SectionTitle>

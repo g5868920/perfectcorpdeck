@@ -1,47 +1,76 @@
-# QA report — v3 (YouCam integration + Creator Memory)
+# QA report — v3.1 (media-first path, Memory fidelity, layered rail)
 
-Date: 2026-11-04. Chrome (headless, via puppeteer-core) plus the in-app browser pane. Node 26.13.0, Vite 5.4.11. Re-run with `npm run build && npm run smoke` (needs `npm run dev`).
+Date: 2026-11-04. Chrome (headless, via puppeteer-core). Node 26.13.0, Vite 5.4.11. `tsc --noEmit` and `vite build`: **PASS**.
 
-## New UX tests (`scripts/smoke-v3.mjs`, 32 checks)
+## P0 results
 
-| Test | Result | What was verified through the real UI |
+| P0 item | Result | Evidence |
 |---|---|---|
-| **T1** Entry flow | **PASS** | Four tabs (Explore / AI Agent / All Tools / History); Explore → Video Generator → **Create Reel** → Reel Agent → first-use offer → **Skip for Now** → New Reel with the seeded brief; skipping saves nothing |
-| **T2** Conversation entry | **PASS** | AI Agent tab → "Create a complete Reel from an idea" → **Start Reel Agent**; a typed Reel request is also recognised; lands in the same New Reel with the same Memory (6 defaults) |
-| **T3** Optional setup | **PASS** | Example description → 6 structured suggestions; nothing saved before review; one excluded and one edited; explicit Save stores only the reviewed values; continues to New Reel |
-| **T4** Memory persistence | **PASS** | The first plan uses saved Memory; after a page refresh, a second brief reuses it with no retyping |
-| **T5** One-off override | **PASS** | Cool Night Look applies only to that Reel (cool storyboard); the saved Visual Style is still Warm Cinematic after refresh; a one-off creates no suggestion |
-| **T6** Continuous learning | **PASS** | One choice in one Reel → no suggestion; the same choice in 2 Reels → pending suggestion with a reason; pending doesn't change Memory; **Not Now** → snoozed, unchanged; **Dismiss** → rejected, unchanged; **Save** → Memory updated |
-| **T7** Memory management sync | **PASS** | Settings → PREFERENCES → Creator Memory opens the Hub; a Hub edit shows in New Reel; "Make default" in New Reel updates the Hub; the Settings row count matches the store |
-| Page errors | **PASS** | None during the run |
+| **Media-first path** (Tokyo Yakiniku — 5 Restaurants) | **PASS** | `smoke-media.mjs` **31/31**, using **real file uploads** (3 JPG + 1 MP4 through the import button) |
+| ├ Import own media or labelled samples | PASS | Uploads appear as `blob:` thumbnails labelled "Yours"; samples labelled "Sample"; video duration detected |
+| ├ Media shown in project and storyboard | PASS | All 7 storyboard segments show the uploaded files by name |
+| ├ 5 names + notes, nothing invented | PASS | Captions contain exactly the typed names and notes; names never enter Memory or signals |
+| ├ Visible scene plan from footage + brief | PASS | 7 segments with timings, captions, footage and a "simulated analysis" disclosure |
+| ├ Footage in preview **and** export | PASS | The canvas renders the footage (non-black frame check); playback clock advances; the export produced a **14.2 MB `video/mp4` recording** |
+| ├ Memory selects narration, captions, pacing, music, visual | PASS | Plan rows show resolved values and sources; the compositor applies the grade, transitions, caption style, music and voice |
+| ├ Attribution and user control over selection/order | PASS | Reorder and remove on import; reassign per segment on the plan; re-cut in Refine |
+| └ Honest fallbacks | PASS | Simulated analysis, browser-voice preview, "narration not in export" and unplayable-file notices |
+| **Creator Memory fidelity** | **PASS** | `smoke-memory.mjs` **63/63**: all 10 keys × (Identity · disabled → App default · This Reel only) on the idea plan, and × (Identity · Series beats Identity · This Reel only beats Series) on the media plan |
+| ├ Reported cases (Warm, Clean Minimal, Minimal transitions, <3s hook) | PASS | Each shown correctly; the hook heading says 0–3s |
+| └ Live update (root-cause regression) | PASS | A Hub edit made after planning appears in the existing plan immediately |
+| **Memory management** (Identity / Series / Pending) | **PASS** | One store reached from Settings, Reel Agent home and New Reel/Plan. A series-scoped suggestion with provenance → **Accept** saves to the series only (Identity unchanged). The promo-code text was **refused** with an explanation |
+| **Layered presenter rail** | **PASS** | `smoke-rail.mjs` **20/20**: 4 collapsible groups tagged Existing/Proposed/QA; **Guided Demo** walks 14 steps on the correct routes with no manual state edits; hidden on phones and absent in capture mode |
 
-## Regression and quality
+## P1 end-to-end integrity (all demonstrable without dev tools)
 
-| Area | Result | Evidence |
+| Scenario | Result |
+|---|---|
+| First-time creator can skip Memory setup | PASS (`smoke-media`, `smoke-v3` T1) |
+| Existing creator edits Memory from Settings | PASS (`smoke-v3` T7) |
+| Uploads actual media, reflected in storyboard | PASS (`smoke-media`) |
+| Plan applies global + content-specific preferences | PASS (Series and Identity sources on the media plan) |
+| Single-Reel override doesn't modify global defaults | PASS (media + T5) |
+| Usable complete Reel preview | PASS (media canvas + coffee prepared Reel) |
+| Targeted changes compared to the original | PASS (media re-cut + coffee Test C) |
+| Ready to Use separate from publishing | PASS ("Not published" card; Draft → Ready) |
+| Start another Reel with approved preferences | PASS (T4, media second Reel) |
+| Repeated decisions → pending suggestions, not silent changes | PASS (T6; series-scoped in `smoke-media`) |
+
+## Regression
+
+| Suite | Result |
+|---|---|
+| Coffee scenario A/B/C + exception + reset (`smoke-journeys`) | **18/18 PASS** |
+| T1–T7 entry points and Memory (`smoke-v3`) | **32/32 PASS** |
+| Layout: 22 screens × 375/430/768/1440 (`smoke-layout`) | **PASS**: no overflow, frame fits, no console errors |
+| Sound-blocked fallback (`smoke-autoplay`) | **PASS** |
+
+## Screenshots (1179×2556, real app states)
+
+`screenshots/v31-review/`:
+
+| # | File | State |
 |---|---|---|
-| **T8** Regression (`smoke-journeys.mjs`, 18 checks) | **PASS** | Suggestion approval; first Reel through the new task-first entry; 6 stages → preview; **Test C** (caption edit visible, music switched, Scene 02 alternate, original untouched, revision saved as Ready to Use); export MP4 present; **Tests A/B**; exception shown with no charge and recovered via Try Again; Reset Demo restores the seed |
-| Playback (sound-blocked fallback) | **PASS** | When audio is refused, the muted video still plays and a "tap to enable" prompt appears; tapping it resumes narration and music in sync |
-| Responsive layout (`smoke-layout.mjs`) | **PASS** | 15 screens × 4 sizes (375×667, 430×932, 768×1024, 1440×900) = 60 checks: no horizontal overflow, frame fits, no console errors |
-| Navigation | **PASS** | Back uses an in-app history stack with sensible fallbacks; AI Agent opens full-screen without a tab bar (as in the real app); All Tools has X close; the presenter rail is hidden on phones and in capture mode |
-| Existing vs proposed clarity | **PASS** | Every proposed element carries a "Proposed" / "Concept" tag; out-of-scope existing tools explain themselves; no personal data or real balances |
-| Design alignment | **PASS for review** | Matches `visual-references/`: white canvas, round indigo feature icons with HOT/NEW badges, black/lavender filter chips, coin pill, indigo segment, gradient-bordered options, Settings section bands, History tabs and filters |
-| Build / typecheck | **PASS** | `tsc --noEmit` and `vite build` succeed |
+| 1 | `1-choose-creation-mode` | Choose creation mode |
+| 2a | `2a-import-empty` | Empty import |
+| 2b | `2b-import-media` | Media imported (labelled samples) |
+| 2c | `2c-restaurants-and-memory` | Restaurants + Memory card |
+| 3a | `3a-media-agent-plan` | Media storyboard |
+| 3b | `3b-media-plan-memory` | Plan with sources |
+| 4 | `4-media-reel-preview` | Preview frame with footage, grade, label, caption |
+| 5 | `5-media-refine` | Refine |
+| 6 | `6-ready-to-use` | Ready to Use |
+| 7a | `7a-memory-identity` | Memory: Identity |
+| 7b | `7b-memory-series` | Memory: Series |
+| 7c | `7c-memory-suggestions` | Memory: Pending |
+| 8 | `8-desktop-presenter-rail` | Desktop rail + guided step (2880×1800) |
 
-## Review screenshots (`screenshots/v3-review/`, 1179×2556)
+The coffee slide set `screenshots/S1…S6` and `screenshots/v3-review/` were recaptured in the current UI.
 
-1. `1-explore.png` — YouCam-aligned Explore (Video Generator is the working entry); `1b-ai-video-create-reel.png` — the proposed Create Reel card on AI Video
-2. `2-ai-agent.png` — the existing-style AI Agent with the proposed Reel prompt; `2b-ai-agent-reel-reply.png` — after tapping it
-3. `3-creator-memory-hub.png` — the Hub (Saved); `3b-memory-suggestions.png` — a pending suggestion with its reason
-4. `4-first-use-offer.png` — Personalize Your Reel Agent; `4b-setup-review.png` — reviewing structured suggestions before Save
-5. `5-new-reel-memory.png` — New Reel with "Using Creator Memory" (View / Manage / Customize)
-6. `6-agent-plan-memory.png` — the Agent Plan showing how Memory shaped each part
+## Open items / limitations
 
-Extra: `extra-settings-preferences.png` — Settings → PREFERENCES → Creator Memory (proposed row).
-
-## Open items
-
-1. ~~Recapture slide screenshots~~ **Done after approval:** `screenshots/S1-creator-memory.png` … `S6-finish.png` plus `extra-history.png` and `extra-exception.png` are recaptured in the v3 UI (1179×2556). Slide 07 uses S1–S3; Slide 08 uses S4–S6. S6 also shows the after-finish Memory suggestion.
-2. The learning rule and setup extraction are deterministic simulations (documented). There is no real model.
-3. Plan-only settings (e.g. Cool Night on the coffee brief, warm narration) don't change the prepared media. They are labelled in the plan.
-4. Not tested in Safari or on a physical iPhone. There's no backup recording.
-5. The **dark sign-in strip** on AI Video and the **PRO banner** in Settings were left out on purpose (account and payment flows are out of scope). Confirm that's acceptable.
+1. The review screenshots use **sample media**, to keep them rights-safe and deterministic. The real-upload path is proven by `smoke-media` but isn't pictured. Re-capture with your own photos if you want them in the deck.
+2. Media-path narration is browser speech: preview only, and the voice depends on the OS/browser. The export carries captions + music only (labelled).
+3. Export is recorded in real time (about 22–28s) and needs a visible tab. Format is MP4 on current Chrome, otherwise WebM.
+4. Footage analysis and the learning rule are deterministic simulations (documented in `DATA_STATE.md`).
+5. Not tested in Safari or on a physical iPhone. There's no backup recording.

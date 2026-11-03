@@ -722,6 +722,7 @@ let args = CommandLine.arguments
 let build = URL(fileURLWithPath: args[1]), out = URL(fileURLWithPath: args[2])
 try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 let mode = args.count > 3 ? args[3] : "all"
+if mode == "yakiniku" { try renderYakiniku(out); print("yakiniku done"); exit(0) }
 
 let voStarts: [Double] = [0.45, 4.45, 9.5, 15.35]
 let sceneLines: [[String]] = [["週末想慢一點？"], ["讓咖啡香提醒你，", "今天不用急。"], ["找個靠窗的位置，", "和自己待一會兒。"], ["這個週末，", "記得留一點時間給自己。"]]

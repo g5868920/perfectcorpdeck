@@ -1,7 +1,7 @@
 // Checks every screen renders without horizontal overflow or console errors at phone, tablet and desktop sizes.
 import puppeteer from 'puppeteer-core';
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const CASES = [['fresh', 'explore'], ['fresh', 'agent'], ['fresh', 'tools'], ['fresh', 'video'], ['memory', 'settings'], ['fresh', 'reel-agent'], ['fresh', 'setup'], ['memory', 'memory'], ['brief-mem', 'new'], ['plan-mem', 'plan'], ['s4', 'preview'], ['s5', 'refine'], ['s6', 'finish'], ['s6', 'library'], ['err', 'error']];
+const CASES = [['fresh', 'explore'], ['fresh', 'agent'], ['fresh', 'tools'], ['fresh', 'video'], ['memory', 'settings'], ['fresh', 'reel-agent'], ['mode', 'mode'], ['import-empty', 'new'], ['import', 'new'], ['media-plan', 'plan'], ['media-preview', 'preview'], ['media-preview', 'refine'], ['media-preview', 'finish'], ['fresh', 'setup'], ['memory', 'memory'], ['brief-mem', 'new'], ['plan-mem', 'plan'], ['s4', 'preview'], ['s5', 'refine'], ['s6', 'finish'], ['s6', 'library'], ['err', 'error']];
 const SIZES = [[375, 667, 'phone-small'], [430, 932, 'phone-large'], [768, 1024, 'tablet'], [1440, 900, 'desktop']];
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
 let fail = 0;

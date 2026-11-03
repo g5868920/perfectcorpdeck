@@ -6,8 +6,8 @@ import { MUSIC, SCENES } from '../state';
 import type { Route, Store } from '../store';
 
 const STAGES = [
-  { key: 'script', label: 'Script', detail: 'Hook and 4 narration lines' },
-  { key: 'scenes', label: 'Scenes', detail: '4 vertical scenes · Warm Cinematic' },
+  { key: 'script', label: 'Script', detail: 'Hook and narration lines' },
+  { key: 'scenes', label: 'Scenes', detail: 'Vertical scenes in your visual style' },
   { key: 'voice', label: 'Voiceover', detail: 'Mandarin narration' },
   { key: 'music', label: 'Music', detail: 'Mellow Lo-fi bed' },
   { key: 'captions', label: 'Captions', detail: 'Traditional Chinese, timed to voice' },
@@ -40,7 +40,7 @@ export function CreateScreen({ store, go }: { store: Store; go: (r: Route) => vo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating, p?.id]);
 
-  if (!p || !p.original) {
+  if (!p || !(p.original || p.mOriginal)) {
     return (
       <div className="screen">
         <Empty
@@ -64,7 +64,10 @@ export function CreateScreen({ store, go }: { store: Store; go: (r: Route) => vo
           <Icon name="sparkle" size={13} /> Agent at work
         </p>
         <h2 className="hero__title">Making your complete Reel</h2>
-        <p className="hero__sub">{p.brief}</p>
+        <p className="hero__sub">
+          {p.brief}
+          {p.mode === 'media' ? ` · from your ${p.media.length} files` : ''}
+        </p>
       </div>
       <Card className="jobs">
         <ol className="jobs__list">
@@ -83,7 +86,7 @@ export function CreateScreen({ store, go }: { store: Store; go: (r: Route) => vo
           })}
         </ol>
       </Card>
-      <Disclosure>Concept demo — AI generation simulated with prepared media.</Disclosure>
+      <Disclosure>{p.mode === 'media' ? 'Concept demo — stages are simulated; the Reel is assembled in your browser from your footage.' : 'Concept demo — AI generation simulated with prepared media.'}</Disclosure>
       {!generating && (
         <button className="btn btn--primary btn--block btn--lg" onClick={() => go('preview')}>
           <Icon name="play" size={16} /> View your Reel

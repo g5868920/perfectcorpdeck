@@ -12,9 +12,13 @@
     "smoke:autoplay": "node scripts/smoke-autoplay.mjs",
     "smoke:layout": "node scripts/smoke-layout.mjs",
     "smoke:journeys": "node scripts/smoke-journeys.mjs",
-    "smoke": "node scripts/smoke-v3.mjs && node scripts/smoke-journeys.mjs && node scripts/smoke-layout.mjs && node scripts/smoke-autoplay.mjs",
+    "smoke": "node scripts/smoke-memory.mjs && node scripts/smoke-v3.mjs && node scripts/smoke-journeys.mjs && node scripts/smoke-layout.mjs && node scripts/smoke-autoplay.mjs && node scripts/smoke-media.mjs && node scripts/smoke-rail.mjs",
     "smoke:v3": "node scripts/smoke-v3.mjs",
-    "capture:v3": "node scripts/capture.mjs v3"
+    "capture:v3": "node scripts/capture.mjs v3",
+    "capture:v31": "node scripts/capture.mjs v31",
+    "smoke:memory": "node scripts/smoke-memory.mjs",
+    "smoke:media": "node scripts/smoke-media.mjs",
+    "smoke:rail": "node scripts/smoke-rail.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
