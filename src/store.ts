@@ -357,22 +357,32 @@ export function useStore() {
           else next = { ...next, signals: next.signals.filter((x) => !(x.projectId === id && x.key === key)) };
           return next;
         }),
-      approveGenerate: (id: string) =>
-        setState((s) => ({
-          ...s,
-          credits: s.credits - CREDIT_COSTS.generate,
-          projects: s.projects.map((p) => {
-            if (p.id !== id) return p;
-            const settings = resolveIn(s, p);
-            const applied = Object.values(settings);
-            const base = { ...p, stage: 'generating' as const, applied, creditsSpent: p.creditsSpent + CREDIT_COSTS.generate };
-            if (p.mode === 'media') {
-              const v = mediaVersionFrom(p, settings);
-              return { ...base, slots: v.slots, mOriginal: v, mRevision: null, chosen: 'original' as const };
-            }
-            return { ...base, original: originalVersion(applied) };
-          }),
-        })),
+      /** charges once and only when the balance covers it; returns false (nothing changes) otherwise */
+      approveGenerate: (id: string): boolean => {
+        const cost = CREDIT_COSTS.generate;
+        const can = (s: AppState, p?: ReelProject) => !!p && (p.stage === 'plan' || p.stage === 'brief' || p.stage === 'draft-plan') && s.credits >= cost;
+        if (!can(state, state.projects.find((p) => p.id === id))) return false;
+        setState((s) => {
+          // re-checked against the latest state: blocks double taps and never goes negative
+          if (!can(s, s.projects.find((p) => p.id === id))) return s;
+          return {
+            ...s,
+            credits: s.credits - cost,
+            projects: s.projects.map((p) => {
+              if (p.id !== id) return p;
+              const settings = resolveIn(s, p);
+              const applied = Object.values(settings);
+              const base = { ...p, stage: 'generating' as const, applied, creditsSpent: p.creditsSpent + cost };
+              if (p.mode === 'media') {
+                const v = mediaVersionFrom(p, settings);
+                return { ...base, slots: v.slots, mOriginal: v, mRevision: null, chosen: 'original' as const };
+              }
+              return { ...base, original: originalVersion(applied) };
+            }),
+          };
+        });
+        return true;
+      },
       saveDraftPlan: (id: string) => patchProject(id, { stage: 'draft-plan', saved: true }),
       finishGenerating: (id: string) => patchProject(id, { stage: 'preview' }),
 
@@ -385,12 +395,21 @@ export function useStore() {
       setRevision: (id: string, rev: ReelVersion) => patchProject(id, { revision: rev }),
       /** returns false when the simulated balance is too low (caller shows the exception state) */
       replaceScene2: (id: string): boolean => {
-        if (state.credits < CREDIT_COSTS.replaceScene) return false;
-        setState((s) => ({
-          ...s,
-          credits: s.credits - CREDIT_COSTS.replaceScene,
-          projects: s.projects.map((x) => (x.id === id && x.revision ? { ...x, revision: { ...x.revision, scene2: 'alt' }, creditsSpent: x.creditsSpent + CREDIT_COSTS.replaceScene } : x)),
-        }));
+        const cost = CREDIT_COSTS.replaceScene;
+        const can = (s: AppState) => {
+          const p = s.projects.find((x) => x.id === id);
+          return !!p?.revision && p.revision.scene2 !== 'alt' && s.credits >= cost;
+        };
+        if (!can(state)) return false;
+        setState((s) => {
+          // re-checked against the latest state: no duplicate charge, no negative balance, Reel untouched on failure
+          if (!can(s)) return s;
+          return {
+            ...s,
+            credits: s.credits - cost,
+            projects: s.projects.map((x) => (x.id === id && x.revision ? { ...x, revision: { ...x.revision, scene2: 'alt' }, creditsSpent: x.creditsSpent + cost } : x)),
+          };
+        });
         return true;
       },
       setCaption: (id: string, idx: number, text: string) =>
@@ -452,7 +471,7 @@ export function useStore() {
       saveProject: (id: string) => patchProject(id, { saved: true }),
 
       /* ---------- Demo controls */
-      setCredits: (credits: number) => setState((s) => ({ ...s, credits })),
+      setCredits: (credits: number) => setState((s) => ({ ...s, credits: Math.max(0, Math.floor(credits)) })),
       resetDemo: () => {
         clearState();
         void clearBlobs();
@@ -478,7 +497,7 @@ export function useStore() {
             original: originalVersion(applied),
             creditsSpent: CREDIT_COSTS.generate,
           });
-          return { ...s, memorySetup: s.memorySetup === 'unseen' ? 'skipped' : s.memorySetup, credits: s.credits - CREDIT_COSTS.generate, projects: [p, ...s.projects], currentId: id };
+          return { ...s, memorySetup: s.memorySetup === 'unseen' ? 'skipped' : s.memorySetup, credits: Math.max(0, s.credits - CREDIT_COSTS.generate), projects: [p, ...s.projects], currentId: id };
         });
         return id;
       },
@@ -498,7 +517,7 @@ export function useStore() {
             const settings = resolvedMap(resolveSettings(s.memory, seriesOf(s, p.series), {}));
             const v = mediaVersionFrom(p, settings);
             p = { ...p, stage: 'preview', mOriginal: v, applied: Object.values(settings), creditsSpent: CREDIT_COSTS.generate };
-            credits -= CREDIT_COSTS.generate;
+            credits = Math.max(0, credits - CREDIT_COSTS.generate);
           }
           return { ...s, memorySetup: s.memorySetup === 'unseen' ? 'skipped' : s.memorySetup, credits, projects: [p, ...s.projects], currentId: id };
         });

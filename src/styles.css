@@ -818,6 +818,18 @@ a.btn { text-decoration: none; }
 .railgroup__items em { font-style: normal; font-size: 10px; color: var(--c-inkMute); }
 .railgroup__items .presenter__coins { margin-top: 6px; }
 
+/* ---- Memory customization: keep labels, dropdowns and long values inside their containers */
+.override, .override__row, .applied__list li, .reviewlist li, .addform, .addform label { min-width: 0; max-width: 100%; }
+.override__row { grid-template-columns: minmax(64px, 92px) minmax(0, 1fr) auto; }
+.applied__list li { grid-template-columns: minmax(64px, 96px) minmax(0, 1fr) auto; }
+.override__row > span, .applied__list li > span { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.applied__list li > b { min-width: 0; overflow-wrap: anywhere; }
+.override__row select, .reviewlist select, .addform select, .sigrow__edit select {
+  width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sigrow__edit select, .sigrow__edit input { min-width: min(140px, 100%); }
+
 /* phone: full-bleed app, no presenter rail (kept last so it wins over the base rules above) */
 @media (max-width: 599px) {
   .stage { padding: 0; display: block; }

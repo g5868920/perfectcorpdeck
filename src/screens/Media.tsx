@@ -413,21 +413,30 @@ export function MediaPlanScreen({ store, go }: { store: Store; go: (r: Route) =>
             <b>{CREDIT_COSTS.generate} demo coins</b>
           </li>
           <li>
+            <span>Your balance</span>
+            <b>{state.credits}</b>
+          </li>
+          <li>
             <span>Balance after</span>
-            <b>{balanceAfter}</b>
+            <b>{balanceAfter < 0 ? 'Not enough' : balanceAfter}</b>
           </li>
         </ul>
         <Disclosure>DEMO quote. The Reel is assembled in your browser from your footage; no real coins or money are used.</Disclosure>
+        {balanceAfter < 0 && (
+          <Disclosure tone="warn">
+            Generating needs <b>{CREDIT_COSTS.generate} demo coins</b> and you have <b>{state.credits}</b>. Nothing was charged and your plan is unchanged.
+          </Disclosure>
+        )}
         <button
           className="btn btn--primary btn--block btn--lg"
           disabled={balanceAfter < 0}
           onClick={() => {
-            actions.approveGenerate(p.id);
+            if (!actions.approveGenerate(p.id)) return; // insufficient or already charged: nothing changes
             setConfirm(false);
             go('create');
           }}
         >
-          Confirm · {CREDIT_COSTS.generate} demo coins
+          {balanceAfter < 0 ? 'Not enough demo coins' : `Confirm · ${CREDIT_COSTS.generate} demo coins`}
         </button>
         <button className="btn btn--ghost btn--block" onClick={() => setConfirm(false)}>
           Not yet

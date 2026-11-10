@@ -63,7 +63,8 @@ export function RefineScreen({ store, go }: { store: Store; go: (r: Route) => vo
     setQuote(false);
     const ok = actions.replaceScene2(p.id);
     if (!ok) {
-      go('error');
+      // insufficient coins → the exception screen (needed vs available, nothing charged); a repeat tap does nothing
+      if (state.credits < CREDIT_COSTS.replaceScene) go('error');
       return;
     }
     editRevision();
