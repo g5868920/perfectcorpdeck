@@ -2,3 +2,5 @@ node_modules/
 dist/
 media-src/build/
 .DS_Store
+.vercel
+.env*

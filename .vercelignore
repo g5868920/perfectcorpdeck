@@ -1,0 +1,11 @@
+# Upload only what the production build needs
+.claude
+dist
+node_modules
+media-src
+screenshots
+scripts
+visual-references
+*.md
+.env*
+.vercel
